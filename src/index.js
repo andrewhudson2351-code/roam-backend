@@ -11,6 +11,7 @@ const friendRoutes = require("./routes/friends");
 const dashboardRoutes = require("./routes/dashboard");
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 
 app.use(cors({ origin: "*", methods: ["GET", "POST", "PUT", "DELETE", "PATCH"] }));
