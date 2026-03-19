@@ -18,7 +18,7 @@ router.get("/", async (req, res) => {
     if (neighborhood) query = query.eq("neighborhood", neighborhood);
     if (category) query = query.eq("category", category);
 
-    query = query.limit(200);
+    query = query.limit(500);
 
     const { data, error } = await query;
     if (error) throw error;
