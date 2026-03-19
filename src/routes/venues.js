@@ -6,8 +6,11 @@ const router = express.Router();
 
 router.get("/", async (req, res) => {
   try {
-    const { city = "Charlotte", neighborhood, category } = req.query;
-    let query = supabase.from("venues").select(`*, venue_busy_scores(busy_score, report_count, last_updated)`).eq("city", city);
+    const { city = "Charlotte", neighborhood, category } = req.query;let query = supabase
+  .from("venues")
+  .select(`*, venue_busy_scores(busy_score, report_count, last_updated)`);
+
+if (city && city !== "all") query = query.eq("city", city);
     if (neighborhood) query = query.eq("neighborhood", neighborhood);
     if (category) query = query.eq("category", category);
     const { data, error } = await query;
