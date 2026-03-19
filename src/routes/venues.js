@@ -6,9 +6,7 @@ const router = express.Router();
 
 router.get("/", async (req, res) => {
   try {
-router.get("/", async (req, res) => {
-  try {
-    const { city, neighborhood, category, lat, lng, radius } = req.query;
+    const { city, neighborhood, category } = req.query;
 
     let query = supabase
       .from("venues")
@@ -30,20 +28,6 @@ router.get("/", async (req, res) => {
       venue_busy_scores: undefined,
     }));
 
-    res.json(venues);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to load venues." });
-  }
-});let query = supabase
-  .from("venues")
-  .select(`*, venue_busy_scores(busy_score, report_count, last_updated)`);
-
-if (city && city !== "all") query = query.eq("city", city);
-    if (neighborhood) query = query.eq("neighborhood", neighborhood);
-    if (category) query = query.eq("category", category);
-    const { data, error } = await query;
-    if (error) throw error;
-    const venues = data.map(v => ({ ...v, busy_score: v.venue_busy_scores?.busy_score ?? 0, report_count: v.venue_busy_scores?.report_count ?? 0, venue_busy_scores: undefined }));
     res.json(venues);
   } catch (err) {
     res.status(500).json({ error: "Failed to load venues." });
@@ -83,18 +67,3 @@ router.post("/", authMiddleware, async (req, res) => {
     const { data, error } = await supabase.from("venues").insert({ name, address, neighborhood, latitude, longitude, category, description, phone, website, instagram, owner_id: req.user.id }).select().single();
     if (error) throw error;
     res.status(201).json(data);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to create venue." });
-  }
-});
-
-router.patch("/:id", authMiddleware, async (req, res) => {
-  const { data: venue } = await supabase.from("venues").select("owner_id").eq("id", req.params.id).single();
-  if (!venue || venue.owner_id !== req.user.id) return res.status(403).json({ error: "Not authorized." });
-  const allowed = ["name", "description", "address", "phone", "website", "instagram", "cover_image_url", "heatmap_boost"];
-  const updates = Object.fromEntries(Object.entries(req.body).filter(([k]) => allowed.includes(k)));
-  const { data } = await supabase.from("venues").update(updates).eq("id", req.params.id).select().single();
-  res.json(data);
-});
-
-module.exports = router;
