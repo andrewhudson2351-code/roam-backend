@@ -6,7 +6,35 @@ const router = express.Router();
 
 router.get("/", async (req, res) => {
   try {
-    const { city = "Charlotte", neighborhood, category } = req.query;let query = supabase
+router.get("/", async (req, res) => {
+  try {
+    const { city, neighborhood, category, lat, lng, radius } = req.query;
+
+    let query = supabase
+      .from("venues")
+      .select(`*, venue_busy_scores(busy_score, report_count, last_updated)`);
+
+    if (city && city !== "all") query = query.eq("city", city);
+    if (neighborhood) query = query.eq("neighborhood", neighborhood);
+    if (category) query = query.eq("category", category);
+
+    query = query.limit(200);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const venues = data.map(v => ({
+      ...v,
+      busy_score: v.venue_busy_scores?.busy_score ?? 0,
+      report_count: v.venue_busy_scores?.report_count ?? 0,
+      venue_busy_scores: undefined,
+    }));
+
+    res.json(venues);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load venues." });
+  }
+});let query = supabase
   .from("venues")
   .select(`*, venue_busy_scores(busy_score, report_count, last_updated)`);
 
