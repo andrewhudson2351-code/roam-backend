@@ -67,3 +67,4 @@ router.post("/", authMiddleware, async (req, res) => {
     const { data, error } = await supabase.from("venues").insert({ name, address, neighborhood, latitude, longitude, category, description, phone, website, instagram, owner_id: req.user.id }).select().single();
     if (error) throw error;
     res.status(201).json(data);
+module.exports = router;
