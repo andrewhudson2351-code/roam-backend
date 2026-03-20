@@ -9,12 +9,13 @@ const dealRoutes      = require("./routes/deals");
 const friendRoutes    = require("./routes/friends");
 const dashboardRoutes = require("./routes/dashboard");
 const stripeRoutes    = require("./routes/stripe");
+const webhookRoutes   = require("./routes/webhooks");
 
 const app = express();
 app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 
-app.use('/api/stripe/webhooks', express.raw({ type: 'application/json' }));
+app.use('/api/stripe/webhooks', express.raw({ type: 'application/json' }), webhookRoutes);
 
 app.use(cors({ origin: "*", methods: ["GET", "POST", "PUT", "DELETE", "PATCH"] }));
 app.use(express.json({ limit: "10mb" }));
