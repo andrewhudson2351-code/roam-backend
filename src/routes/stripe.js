@@ -145,5 +145,34 @@ router.get('/subscription-status/:venueId', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch subscription status' });
   }
 });
+router.post('/create-portal-session', requireAuth, async (req, res) => {
+  const { venueId } = req.body;
+
+  if (!venueId) {
+    return res.status(400).json({ error: 'venueId is required' });
+  }
+
+  try {
+    const venue = await getOwnedVenue(req.user.id, venueId);
+    if (!venue) {
+      return res.status(404).json({ error: 'Venue not found or not owned by you' });
+    }
+
+    if (!venue.stripe_customer_id) {
+      return res.status(400).json({ error: 'No billing account found for this venue' });
+    }
+
+    const session = await stripe.billingPortal.sessions.create({
+      customer:   venue.stripe_customer_id,
+      return_url: `${process.env.FRONTEND_URL}/dashboard`,
+    });
+
+    res.json({ url: session.url });
+
+  } catch (err) {
+    console.error('create-portal-session error:', err);
+    res.status(500).json({ error: 'Failed to create portal session' });
+  }
+});
 
 module.exports = router;
