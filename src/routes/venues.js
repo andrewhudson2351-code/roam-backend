@@ -4,6 +4,75 @@ const authMiddleware = require("../middleware/auth");
 
 const router = express.Router();
 
+// GET /api/venues/search?q=name — search venues by name
+router.get("/search", async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q || q.trim().length < 2) return res.status(400).json({ error: "Search query must be at least 2 characters." });
+
+    const { data, error } = await supabase
+      .from("venues")
+      .select("id, name, address, neighborhood, city, category, owner_id, latitude, longitude")
+      .ilike("name", `%${q.trim()}%`)
+      .limit(20);
+
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: "Search failed." });
+  }
+});
+
+// POST /api/venues/:id/claim — claim a venue (instant for now)
+router.post("/:id/claim", authMiddleware, async (req, res) => {
+  try {
+    const venueId = req.params.id;
+    const userId = req.user.id;
+
+    // Check venue exists
+    const { data: venue, error: venueError } = await supabase
+      .from("venues")
+      .select("id, name, owner_id")
+      .eq("id", venueId)
+      .single();
+
+    if (venueError || !venue) return res.status(404).json({ error: "Venue not found." });
+
+    // Check not already claimed by someone else
+    if (venue.owner_id && venue.owner_id !== userId) {
+      return res.status(409).json({ error: "This venue has already been claimed." });
+    }
+
+    // Check user hasn't already claimed it
+    if (venue.owner_id === userId) {
+      return res.status(409).json({ error: "You have already claimed this venue." });
+    }
+
+    // Record the claim
+    const { error: claimError } = await supabase
+      .from("venue_claims")
+      .upsert({ venue_id: venueId, user_id: userId, status: "approved", approved_at: new Date().toISOString() });
+
+    if (claimError) throw claimError;
+
+    // Instantly assign owner
+    const { data: updated, error: updateError } = await supabase
+      .from("venues")
+      .update({ owner_id: userId, is_verified: true })
+      .eq("id", venueId)
+      .select("id, name, address, neighborhood, city, category")
+      .single();
+
+    if (updateError) throw updateError;
+
+    res.json({ success: true, venue: updated, message: `You are now the verified owner of ${updated.name}.` });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Claim failed. Please try again." });
+  }
+});
+
+// GET /api/venues — all venues for a city
 router.get("/", async (req, res) => {
   try {
     const { city, neighborhood, category } = req.query;
@@ -28,6 +97,7 @@ router.get("/", async (req, res) => {
   }
 });
 
+// GET /api/venues/:id — single venue
 router.get("/:id", async (req, res) => {
   try {
     const { data: venue, error } = await supabase.from("venues").select(`*, venue_busy_scores(busy_score, report_count)`).eq("id", req.params.id).single();
@@ -40,6 +110,7 @@ router.get("/:id", async (req, res) => {
   }
 });
 
+// POST /api/venues/:id/crowd — crowd report
 router.post("/:id/crowd", authMiddleware, async (req, res) => {
   try {
     const { busy_level } = req.body;
@@ -54,6 +125,7 @@ router.post("/:id/crowd", authMiddleware, async (req, res) => {
   }
 });
 
+// POST /api/venues — create venue
 router.post("/", authMiddleware, async (req, res) => {
   try {
     const { name, address, neighborhood, latitude, longitude, category, description, phone, website, instagram } = req.body;
@@ -66,6 +138,7 @@ router.post("/", authMiddleware, async (req, res) => {
   }
 });
 
+// PATCH /api/venues/:id — update venue
 router.patch("/:id", authMiddleware, async (req, res) => {
   const { data: venue } = await supabase.from("venues").select("owner_id").eq("id", req.params.id).single();
   if (!venue || venue.owner_id !== req.user.id) return res.status(403).json({ error: "Not authorized." });
