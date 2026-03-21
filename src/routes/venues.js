@@ -73,6 +73,26 @@ router.post("/:id/claim", authMiddleware, async (req, res) => {
 });
 
 // GET /api/venues — all venues for a city
+// GET /api/venues/mine — get venues owned by current user
+router.get("/mine", authMiddleware, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("venues")
+      .select(`*, venue_busy_scores(busy_score, report_count)`)
+      .eq("owner_id", req.user.id);
+    if (error) throw error;
+    const venues = data.map(v => ({
+      ...v,
+      busy_score: v.venue_busy_scores?.busy_score ?? 0,
+      venue_busy_scores: undefined,
+    }));
+    res.json(venues);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load your venues." });
+  }
+});
+
+router.get("/", async (req, res) => {
 router.get("/", async (req, res) => {
   try {
     const { city, neighborhood, category } = req.query;
