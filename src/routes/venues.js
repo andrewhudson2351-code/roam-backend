@@ -71,7 +71,7 @@ router.post("/:id/claim", authMiddleware, async (req, res) => {
   }
 });
 
-// GET /api/venues
+
 // ── GET /api/venues/baseline?city=Charlotte ───────────
 // Add this route to venues.js BEFORE the router.get("/") route
 // Returns baseline busy scores from BestTime data for current day/hour
