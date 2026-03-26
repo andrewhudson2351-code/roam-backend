@@ -72,6 +72,46 @@ router.post("/:id/claim", authMiddleware, async (req, res) => {
 });
 
 // GET /api/venues
+// ── GET /api/venues/baseline?city=Charlotte ───────────
+// Add this route to venues.js BEFORE the router.get("/") route
+// Returns baseline busy scores from BestTime data for current day/hour
+
+router.get("/baseline", async (req, res) => {
+  try {
+    const { city } = req.query;
+    if (!city) return res.status(400).json({ error: "city is required" });
+
+    // Current day and hour (0=Monday...6=Sunday, 0-23 hour)
+    const now = new Date();
+    const dayInt = (now.getDay() + 6) % 7; // JS Sunday=0, BestTime Monday=0
+    const hour = now.getHours();
+
+    // Get all venues in city with their typical hours for today
+    const { data, error } = await supabase
+      .from("venue_typical_hours")
+      .select(`
+        venue_id,
+        hour_data,
+        venues!inner(id, city, latitude, longitude)
+      `)
+      .eq("day_int", dayInt)
+      .eq("venues.city", city);
+
+    if (error) throw error;
+
+    const baselines = data
+      .filter(row => Array.isArray(row.hour_data) && row.hour_data.length === 24)
+      .map(row => ({
+        venue_id: row.venue_id,
+        baseline_score: Math.round(row.hour_data[hour] || 0),
+      }));
+
+    res.json({ day_int: dayInt, hour, baselines });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to load baseline scores." });
+  }
+});
 router.get("/", async (req, res) => {
   try {
     const { city, neighborhood, category } = req.query;
