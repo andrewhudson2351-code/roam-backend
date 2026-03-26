@@ -56,4 +56,32 @@ router.patch("/me", authMiddleware, async (req, res) => {
   res.json(data);
 });
 
+// ── DELETE /api/auth/me ────────────────────────────────
+// Add this to src/routes/auth.js
+// Cascades through all user data then deletes the user row
+
+router.delete(”/me”, authMiddleware, async (req, res) => {
+const userId = req.user.id;
+try {
+// Delete in dependency order
+await supabase.from(“friend_locations”).delete().eq(“user_id”, userId);
+await supabase.from(“friendships”).delete().or(`requester_id.eq.${userId},addressee_id.eq.${userId}`);
+await supabase.from(“story_likes”).delete().eq(“user_id”, userId);
+await supabase.from(“deal_redemptions”).delete().eq(“user_id”, userId);
+await supabase.from(“deal_saves”).delete().eq(“user_id”, userId);
+await supabase.from(“crowd_reports”).delete().eq(“user_id”, userId);
+await supabase.from(“stories”).delete().eq(“user_id”, userId);
+await supabase.from(“venue_claims”).delete().eq(“user_id”, userId);
+// Unclaim any venues this user owned
+await supabase.from(“venues”).update({ owner_id: null, is_verified: false }).eq(“owner_id”, userId);
+// Delete the user row
+const { error } = await supabase.from(“users”).delete().eq(“id”, userId);
+if (error) throw error;
+res.json({ success: true, message: “Account deleted.” });
+} catch (err) {
+console.error(err);
+res.status(500).json({ error: “Failed to delete account. Please try again.” });
+}
+});
+
 module.exports = router;
