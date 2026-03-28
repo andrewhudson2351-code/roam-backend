@@ -10,6 +10,8 @@ const friendRoutes    = require("./routes/friends");
 const dashboardRoutes = require("./routes/dashboard");
 const stripeRoutes    = require("./routes/stripe");
 const webhookRoutes   = require("./routes/webhooks");
+const billingRoutes = require("./routes/billing");
+app.use("/api/billing", billingRoutes);
 
 const app = express();
 app.set('trust proxy', 1);
