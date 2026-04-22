@@ -4,8 +4,8 @@ const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const supabase = require("../supabase");
 const authMiddleware = require("../middleware/auth");
 
-const PRO_PRICE_ID     = process.env.STRIPE_PRO_PRICE_ID;
-const PREMIUM_PRICE_ID = process.env.STRIPE_PREMIUM_PRICE_ID;
+const PRO_PRICE_ID     = process.env.STRIPE_PRICE_PRO;
+const PREMIUM_PRICE_ID = process.env.STRIPE_PRICE_PREMIUM;
 const FRONTEND_URL     = process.env.FRONTEND_URL || "https://roam-frontend-rho.vercel.app";
 
 // ── POST /api/billing/create-checkout ─────────────────
