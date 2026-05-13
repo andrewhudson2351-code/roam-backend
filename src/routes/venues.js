@@ -158,11 +158,30 @@ router.post("/:id/crowd", authMiddleware, async (req, res) => {
     const { data: scores } = await supabase.from("crowd_reports").select("busy_level").eq("venue_id", req.params.id).gt("reported_at", new Date(Date.now() - 90 * 60 * 1000).toISOString());
     const avg = scores.reduce((sum, r) => sum + r.busy_level, 0) / scores.length;
     await supabase.from("venue_busy_scores").upsert({ venue_id: req.params.id, busy_score: Math.round(avg), report_count: scores.length, last_updated: new Date().toISOString() });
+
+    // ── Analytics write ─────────────────────────────
+    const today = new Date().toISOString().split("T")[0];
+    await supabase.from("venue_analytics").upsert({
+      venue_id: req.params.id,
+      date: today,
+      visitor_count: 1,
+    }, {
+      onConflict: "venue_id,date",
+      ignoreDuplicates: false,
+    }).then(async () => {
+      await supabase.rpc("increment_analytics", {
+        p_venue_id: req.params.id,
+        p_date: today,
+        p_field: "visitor_count",
+      }).catch(() => null);
+    }).catch(() => null);
+
     res.json({ success: true, new_score: Math.round(avg) });
   } catch (err) {
     res.status(500).json({ error: "Failed to submit crowd report." });
   }
 });
+
 
 // POST /api/venues
 router.post("/", authMiddleware, async (req, res) => {
