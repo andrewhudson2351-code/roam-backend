@@ -1,19 +1,9 @@
 const express               = require('express');
 const { stripe, PRICE_IDS } = require('../config/stripe');
 const { supabase }          = require('../config/supabase');
+const authMiddleware        = require('../middleware/auth');
 
 const router = express.Router();
-
-async function requireAuth(req, res, next) {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (!token) return res.status(401).json({ error: 'Unauthorized' });
-
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-  if (error || !user) return res.status(401).json({ error: 'Invalid token' });
-
-  req.user = user;
-  next();
-}
 
 async function getOwnedVenue(userId, venueId) {
   const { data: venue, error } = await supabase
@@ -27,7 +17,7 @@ async function getOwnedVenue(userId, venueId) {
   return venue;
 }
 
-router.post('/create-customer', requireAuth, async (req, res) => {
+router.post('/create-customer', authMiddleware, async (req, res) => {
   const { venueId } = req.body;
   if (!venueId) return res.status(400).json({ error: 'venueId is required' });
 
@@ -73,7 +63,7 @@ router.post('/create-customer', requireAuth, async (req, res) => {
   }
 });
 
-router.post('/create-checkout-session', requireAuth, async (req, res) => {
+router.post('/create-checkout-session', authMiddleware, async (req, res) => {
   const { venueId, tier } = req.body;
   if (!venueId || !tier) return res.status(400).json({ error: 'venueId and tier are required' });
 
@@ -116,7 +106,7 @@ router.post('/create-checkout-session', requireAuth, async (req, res) => {
   }
 });
 
-router.get('/subscription-status/:venueId', requireAuth, async (req, res) => {
+router.get('/subscription-status/:venueId', authMiddleware, async (req, res) => {
   const { venueId } = req.params;
 
   try {
@@ -145,7 +135,7 @@ router.get('/subscription-status/:venueId', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch subscription status' });
   }
 });
-router.post('/create-portal-session', requireAuth, async (req, res) => {
+router.post('/create-portal-session', authMiddleware, async (req, res) => {
   const { venueId } = req.body;
 
   if (!venueId) {

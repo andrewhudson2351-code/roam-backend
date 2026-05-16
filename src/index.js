@@ -10,14 +10,12 @@ const friendRoutes    = require("./routes/friends");
 const dashboardRoutes = require("./routes/dashboard");
 const stripeRoutes    = require("./routes/stripe");
 const webhookRoutes   = require("./routes/webhooks");
-const billingRoutes   = require("./routes/billing");
 
 const app = express();
 app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 
 app.use('/api/stripe/webhooks', express.raw({ type: 'application/json' }), webhookRoutes);
-app.use('/api/billing/webhook', express.raw({ type: 'application/json' }));
 app.use(cors({ origin: "*", methods: ["GET", "POST", "PUT", "DELETE", "PATCH"] }));
 app.use(express.json({ limit: "10mb" }));
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, message: "Too many requests, slow down." });
@@ -30,7 +28,6 @@ app.use("/api/deals",     dealRoutes);
 app.use("/api/friends",   friendRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/stripe",    stripeRoutes);
-app.use("/api/billing",   billingRoutes);
 
 app.get("/", (req, res) => res.json({ status: "Roam API is live 🌍", version: "1.0.0" }));
 app.use((req, res) => res.status(404).json({ error: "Route not found" }));
