@@ -42,7 +42,7 @@ async function syncSubscription({
   const { error: venueError } = await supabase
     .from('venues')
     .update({
-      tier,
+      plan: tier,
       stripe_customer_id: stripeCustomerId,
       heatmap_boost:      tier === 'premium',
     })
