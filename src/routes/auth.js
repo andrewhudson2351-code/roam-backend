@@ -10,12 +10,12 @@ const signToken = (user) => jwt.sign({ id: user.id, email: user.email, username:
 
 router.post("/register", async (req, res) => {
   try {
-    const { email, password, username, display_name } = req.body;
+    const { email, password, username, display_name, home_city } = req.body;
     if (!email || !password || !username) return res.status(400).json({ error: "Email, password, and username are required." });
     if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters." });
 
     const password_hash = await bcrypt.hash(password, 12);
-    const { data, error } = await supabase.from("users").insert({ email, password_hash, username, display_name: display_name || username }).select("id, email, username, display_name, is_premium").single();
+    const { data, error } = await supabase.from("users").insert({ email, password_hash, username, display_name: display_name || username, home_city: home_city || null }).select("id, email, username, display_name, is_premium, home_city").single();
     if (error) {
       if (error.code === "23505") return res.status(409).json({ error: "Email or username already taken." });
       throw error;
@@ -46,13 +46,13 @@ router.post("/login", async (req, res) => {
 });
 
 router.get("/me", authMiddleware, async (req, res) => {
-  const { data } = await supabase.from("users").select("id, email, username, display_name, is_premium, avatar_url, location_sharing").eq("id", req.user.id).single();
+  const { data } = await supabase.from("users").select("id, email, username, display_name, is_premium, avatar_url, location_sharing, home_city").eq("id", req.user.id).single();
   res.json(data);
 });
 
 router.patch("/me", authMiddleware, async (req, res) => {
-  const { display_name, avatar_url, location_sharing } = req.body;
-  const { data } = await supabase.from("users").update({ display_name, avatar_url, location_sharing }).eq("id", req.user.id).select("id, email, username, display_name, is_premium, avatar_url, location_sharing").single();
+  const { display_name, avatar_url, location_sharing, home_city } = req.body;
+  const { data } = await supabase.from("users").update({ display_name, avatar_url, location_sharing, home_city }).eq("id", req.user.id).select("id, email, username, display_name, is_premium, avatar_url, location_sharing, home_city").single();
   res.json(data);
 });
 
