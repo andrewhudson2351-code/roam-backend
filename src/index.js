@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const rateLimit = require("express-rate-limit");
+const cron = require("node-cron");
 const authRoutes      = require("./routes/auth");
 const venueRoutes     = require("./routes/venues");
 const storyRoutes     = require("./routes/stories");
@@ -10,6 +11,7 @@ const friendRoutes    = require("./routes/friends");
 const dashboardRoutes = require("./routes/dashboard");
 const stripeRoutes    = require("./routes/stripe");
 const webhookRoutes   = require("./routes/webhooks");
+const refreshBusyScores = require("./jobs/refreshBusyScores");
 
 const app = express();
 app.set('trust proxy', 1);
@@ -36,3 +38,12 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: "Something went wrong." });
 });
 app.listen(PORT, () => console.log(`🌍 Roam API running on port ${PORT}`));
+
+cron.schedule("*/15 * * * *", async () => {
+  try {
+    const count = await refreshBusyScores();
+    console.log(`refresh_busy_scores: updated ${count} venues`);
+  } catch (err) {
+    console.error("refresh_busy_scores failed:", err);
+  }
+});
