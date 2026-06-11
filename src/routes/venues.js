@@ -55,7 +55,7 @@ router.post("/:id/claim", authMiddleware, async (req, res) => {
     if (venue.owner_id === userId) return res.status(409).json({ error: "You have already claimed this venue." });
     const { error: claimError } = await supabase
       .from("venue_claims")
-      .upsert({ venue_id: venueId, user_id: userId, status: "approved", approved_at: new Date().toISOString() }, { onConflict: 'venue_id,user_id' });
+      .upsert({ venue_id: venueId, user_id: userId, status: "approved", approved_at: new Date().toISOString() }, { onConflict: 'venue_id' });
     if (claimError) throw claimError;
     const { data: updated, error: updateError } = await supabase
       .from("venues")
@@ -158,6 +158,7 @@ router.post("/:id/crowd", authMiddleware, async (req, res) => {
     const { data: scores } = await supabase.from("crowd_reports").select("busy_level").eq("venue_id", req.params.id).gt("reported_at", new Date(Date.now() - 90 * 60 * 1000).toISOString());
     const avg = scores.reduce((sum, r) => sum + r.busy_level, 0) / scores.length;
     await supabase.from("venue_busy_scores").upsert({ venue_id: req.params.id, busy_score: Math.round(avg), report_count: scores.length, last_updated: new Date().toISOString() });
+    await supabase.from("busy_score_history").insert({ venue_id: req.params.id, busy_score: Math.round(avg), recorded_at: new Date().toISOString() });
 
     // Analytics write
     const today = new Date().toISOString().split("T")[0];
