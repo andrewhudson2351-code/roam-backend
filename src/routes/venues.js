@@ -55,11 +55,11 @@ router.post("/:id/claim", authMiddleware, async (req, res) => {
     if (venue.owner_id === userId) return res.status(409).json({ error: "You have already claimed this venue." });
     const { error: claimError } = await supabase
       .from("venue_claims")
-      .upsert({ venue_id: venueId, user_id: userId, status: "approved", approved_at: new Date().toISOString() });
+      .upsert({ venue_id: venueId, user_id: userId, status: "approved", approved_at: new Date().toISOString() }, { onConflict: 'venue_id,user_id' });
     if (claimError) throw claimError;
     const { data: updated, error: updateError } = await supabase
       .from("venues")
-      .update({ owner_id: userId, is_verified: true })
+      .update({ owner_id: userId, is_verified: true, plan: 'free' })
       .eq("id", venueId)
       .select("id, name, address, neighborhood, city, category")
       .single();
