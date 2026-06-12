@@ -114,7 +114,7 @@ router.get("/baseline", async (req, res) => {
 });
 router.get("/", async (req, res) => {
   try {
-    const { city, neighborhood, category } = req.query;
+    const { city, neighborhood, category, mode } = req.query;
     let query = supabase
       .from("venues")
       .select(`*, venue_busy_scores(busy_score, report_count, last_updated)`);
@@ -130,6 +130,22 @@ router.get("/", async (req, res) => {
       report_count: v.venue_busy_scores?.report_count ?? 0,
       venue_busy_scores: undefined,
     }));
+
+    if (mode === "local") {
+      const coords = venues
+        .map(v => [parseFloat(v.latitude), parseFloat(v.longitude)])
+        .filter(([lat, lng]) => !isNaN(lat) && !isNaN(lng));
+      const cLat = coords.reduce((s, [lat]) => s + lat, 0) / (coords.length || 1);
+      const cLng = coords.reduce((s, [, lng]) => s + lng, 0) / (coords.length || 1);
+      const localScore = v => {
+        const dist = Math.hypot(parseFloat(v.latitude) - cLat, parseFloat(v.longitude) - cLng);
+        const distScore = Math.min(100, (isNaN(dist) ? 100 : dist * 2000));
+        return (v.busy_score || 0) * 0.7 + distScore * 0.3;
+      };
+      venues.sort((a, b) => localScore(a) - localScore(b));
+    } else {
+      venues.sort((a, b) => (b.busy_score || 0) - (a.busy_score || 0));
+    }
     res.json(venues);
   } catch (err) {
     res.status(500).json({ error: "Failed to load venues." });
