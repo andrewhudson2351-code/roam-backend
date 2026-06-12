@@ -8,7 +8,7 @@ const router = express.Router();
 async function getOwnedVenue(userId, venueId) {
   const { data: venue, error } = await supabase
     .from('venues')
-    .select('id, name, tier, stripe_customer_id, owner_id')
+    .select('id, name, plan, stripe_customer_id, owner_id')
     .eq('id', venueId)
     .eq('owner_id', userId)
     .single();
