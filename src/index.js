@@ -20,7 +20,7 @@ const PORT = process.env.PORT || 3000;
 app.use('/api/stripe/webhooks', express.raw({ type: 'application/json' }), webhookRoutes);
 app.use(cors({ origin: "*", methods: ["GET", "POST", "PUT", "DELETE", "PATCH"] }));
 app.use(express.json({ limit: "10mb" }));
-const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, message: "Too many requests, slow down." });
+const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 500, message: { error: "Too many requests, slow down." } });
 app.use(limiter);
 
 app.use("/api/auth",      authRoutes);

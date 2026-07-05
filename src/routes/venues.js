@@ -1,8 +1,16 @@
 const express = require("express");
 const { supabase } = require("../config/supabase");
 const authMiddleware = require("../middleware/auth");
+const rateLimit = require("express-rate-limit");
 
 const router = express.Router();
+
+const crowdReportLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  keyGenerator: (req) => req.user.id,
+  message: { error: "You're reporting too often. Try again in a few minutes." },
+});
 
 // GET /api/venues/search?q=name
 router.get("/search", async (req, res) => {
@@ -166,7 +174,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // POST /api/venues/:id/crowd
-router.post("/:id/crowd", authMiddleware, async (req, res) => {
+router.post("/:id/crowd", authMiddleware, crowdReportLimiter, async (req, res) => {
   try {
     const { busy_level } = req.body;
     if (typeof busy_level !== "number" || busy_level < 0 || busy_level > 100) return res.status(400).json({ error: "busy_level must be a number between 0-100." });
