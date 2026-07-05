@@ -6,10 +6,20 @@ const router = express.Router();
 
 router.get("/", authMiddleware, async (req, res) => {
   try {
-    const { venue_id, visibility = "public" } = req.query;
-    let query = supabase.from("stories").select(`*, venues(id, name, neighborhood), users(username, display_name, avatar_url)`).gt("expires_at", new Date().toISOString()).order("created_at", { ascending: false }).limit(50);
+    const { venue_id } = req.query;
+    const { data: fr } = await supabase
+      .from("friendships")
+      .select("requester_id, addressee_id")
+      .or(`requester_id.eq.${req.user.id},addressee_id.eq.${req.user.id}`)
+      .eq("status", "accepted");
+    const friendIds = (fr || []).map(f => f.requester_id === req.user.id ? f.addressee_id : f.requester_id);
+    const allowedAuthors = [req.user.id, ...friendIds].join(",");
+    let query = supabase.from("stories").select(`*, venues(id, name, neighborhood), users(username, display_name, avatar_url)`)
+      .gt("expires_at", new Date().toISOString())
+      .or(`visibility.eq.public,user_id.in.(${allowedAuthors})`)
+      .order("created_at", { ascending: false })
+      .limit(50);
     if (venue_id) query = query.eq("venue_id", venue_id);
-    if (visibility === "public") query = query.eq("visibility", "public");
     const { data, error } = await query;
     if (error) throw error;
     const stories = data.map(s => ({ ...s, users: s.is_anonymous ? null : s.users }));

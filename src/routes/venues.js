@@ -166,7 +166,7 @@ router.get("/:id", async (req, res) => {
     const { data: venue, error } = await supabase.from("venues").select(`*, venue_busy_scores(busy_score, report_count)`).eq("id", req.params.id).single();
     if (error) return res.status(404).json({ error: "Venue not found." });
     const { data: deals } = await supabase.from("deals").select("*").eq("venue_id", req.params.id).eq("is_active", true).gt("expires_at", new Date().toISOString());
-    const { data: stories } = await supabase.from("stories").select("id, caption, emoji, visibility, is_anonymous, like_count, created_at, users(username, display_name, avatar_url)").eq("venue_id", req.params.id).gt("expires_at", new Date().toISOString()).order("created_at", { ascending: false }).limit(10);
+    const { data: stories } = await supabase.from("stories").select("id, caption, emoji, visibility, is_anonymous, like_count, created_at, users(username, display_name, avatar_url)").eq("venue_id", req.params.id).eq("visibility", "public").gt("expires_at", new Date().toISOString()).order("created_at", { ascending: false }).limit(10);
     res.json({ ...venue, busy_score: venue.venue_busy_scores?.busy_score ?? 0, deals: deals || [], stories: stories || [] });
   } catch (err) {
     res.status(500).json({ error: "Failed to load venue." });
