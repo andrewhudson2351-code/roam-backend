@@ -56,6 +56,7 @@ router.get("/me", authMiddleware, async (req, res) => {
 router.patch("/me", authMiddleware, async (req, res) => {
   const { display_name, avatar_url, location_sharing, home_city } = req.body;
   const { data } = await supabase.from("users").update({ display_name, avatar_url, location_sharing, home_city }).eq("id", req.user.id).select("id, email, username, display_name, is_premium, avatar_url, location_sharing, home_city").single();
+  if (location_sharing === false) await supabase.from("friend_locations").delete().eq("user_id", req.user.id);
   res.json(data);
 });
 

@@ -8,9 +8,20 @@ router.get("/", authMiddleware, async (req, res) => {
   const { data } = await supabase.from("friendships").select(`*, requester:users!requester_id(id, username, display_name, avatar_url), addressee:users!addressee_id(id, username, display_name, avatar_url)`).or(`requester_id.eq.${req.user.id},addressee_id.eq.${req.user.id}`).eq("status", "accepted");
   const friends = (data || []).map(f => ({ friendship_id: f.id, friend: f.requester_id === req.user.id ? f.addressee : f.requester }));
   const friendIds = friends.map(f => f.friend.id);
-  const { data: locations } = await supabase.from("friend_locations").select("*, venues(name, neighborhood)").in("user_id", friendIds);
+  const staleCutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  const { data: locations } = await supabase.from("friend_locations").select("*, venues(name, neighborhood)").in("user_id", friendIds).gte("updated_at", staleCutoff);
   const locationMap = Object.fromEntries((locations || []).map(l => [l.user_id, l]));
   res.json(friends.map(f => ({ ...f, location: locationMap[f.friend.id] || null })));
+});
+
+router.get("/requests", authMiddleware, async (req, res) => {
+  const { data } = await supabase
+    .from("friendships")
+    .select(`id, created_at, requester:users!requester_id(id, username, display_name, avatar_url)`)
+    .eq("addressee_id", req.user.id)
+    .eq("status", "pending")
+    .order("created_at", { ascending: false });
+  res.json((data || []).map(f => ({ friendship_id: f.id, requester: f.requester, created_at: f.created_at })));
 });
 
 router.post("/request", authMiddleware, async (req, res) => {
