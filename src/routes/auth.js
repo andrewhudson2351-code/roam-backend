@@ -4,7 +4,7 @@ const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const rateLimit = require("express-rate-limit");
 const { v4: uuidv4 } = require("uuid");
-const supabase = require("../supabase");
+const { supabase } = require("../config/supabase");
 const authMiddleware = require("../middleware/auth");
 const { stripe } = require("../config/stripe");
 

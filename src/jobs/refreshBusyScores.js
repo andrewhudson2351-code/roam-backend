@@ -1,4 +1,4 @@
-const supabase = require("../supabase");
+const { supabase } = require("../config/supabase");
 
 async function refreshBusyScores() {
   const since = new Date(Date.now() - 90 * 60 * 1000).toISOString();
