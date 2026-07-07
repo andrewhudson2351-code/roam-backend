@@ -269,37 +269,6 @@ router.post("/:id/claim/confirm", authMiddleware, async (req, res) => {
   }
 });
 
-// POST /api/venues/:id/claim  (legacy -- instant approval, no phone verification)
-router.post("/:id/claim", authMiddleware, async (req, res) => {
-  try {
-    const venueId = req.params.id;
-    const userId = req.user.id;
-    const { data: venue, error: venueError } = await supabase
-      .from("venues")
-      .select("id, name, owner_id")
-      .eq("id", venueId)
-      .single();
-    if (venueError || !venue) return res.status(404).json({ error: "Venue not found." });
-    if (venue.owner_id && venue.owner_id !== userId) return res.status(409).json({ error: "This venue has already been claimed." });
-    if (venue.owner_id === userId) return res.status(409).json({ error: "You have already claimed this venue." });
-    const { error: claimError } = await supabase
-      .from("venue_claims")
-      .upsert({ venue_id: venueId, user_id: userId, status: "approved", approved_at: new Date().toISOString() }, { onConflict: 'venue_id, user_id' });
-    if (claimError) throw claimError;
-    const { data: updated, error: updateError } = await supabase
-      .from("venues")
-      .update({ owner_id: userId, is_verified: true, plan: 'free' })
-      .eq("id", venueId)
-      .select("id, name, address, neighborhood, city, category")
-      .single();
-    if (updateError) throw updateError;
-    res.json({ success: true, venue: updated, message: `You are now the verified owner of ${updated.name}.` });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Claim failed. Please try again." });
-  }
-});
-
 // GET /api/venues/baseline?city=Charlotte
 router.get("/baseline", async (req, res) => {
   try {
