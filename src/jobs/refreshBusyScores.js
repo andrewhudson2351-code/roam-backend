@@ -2,6 +2,16 @@ const { supabase } = require("../config/supabase");
 
 async function refreshBusyScores() {
   const since = new Date(Date.now() - 90 * 60 * 1000).toISOString();
+
+  // Reports aged out of the window mean no current signal — zero the score
+  // rather than letting the last computed value persist indefinitely.
+  const { error: staleError } = await supabase
+    .from("venue_busy_scores")
+    .update({ busy_score: 0, report_count: 0 })
+    .lt("last_updated", since)
+    .gt("busy_score", 0);
+  if (staleError) throw staleError;
+
   const { data: reports, error } = await supabase
     .from("crowd_reports")
     .select("venue_id, busy_level")
