@@ -27,8 +27,12 @@ router.post("/:id/redeem", authMiddleware, async (req, res) => {
       if (!isPremium) return res.status(403).json({ error: "This deal is for Premium members only.", upgrade_required: true });
     }
     const { error } = await supabase.from("deal_redemptions").insert({ deal_id: req.params.id, user_id: req.user.id });
-    if (error?.code === "23505") return res.status(409).json({ error: "You have already redeemed this deal." });
-    await supabase.from("deals").update({ redemption_count: deal.redemption_count + 1 }).eq("id", req.params.id);
+    if (error) {
+      if (error.code === "23505") return res.status(409).json({ error: "You have already redeemed this deal." });
+      throw error;
+    }
+    const { error: countError } = await supabase.rpc("increment_deal_redemptions", { p_deal_id: req.params.id });
+    if (countError) throw countError;
     res.json({ success: true, message: "Deal redeemed! Show this screen at the venue." });
   } catch (err) {
     res.status(500).json({ error: "Failed to redeem deal." });
