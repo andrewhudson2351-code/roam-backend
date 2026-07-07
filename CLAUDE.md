@@ -52,6 +52,7 @@ database/           empty — schema lives only in Supabase (use MCP list_tables
 - **JWTs live 30 days with no revocation** — logout/password-change does not invalidate existing tokens (password reset does not kill old sessions).
 - **No input validation layer** — no email-format check on register, no schema validation anywhere; routes destructure `req.body` directly. `express.json` body limit is a generous 10 MB.
 - **`venues.tier` dead column** still exists in the schema; safe to drop eventually, after confirming nothing reads it.
+- **Public venues endpoint returns `select *`-style rows** (`src/routes/venues.js`, e.g. the city list query) — the dead `tier` column and `stripe_customer_id` are exposed in the unauthenticated API response. Should be trimmed to an explicit column list.
 - **No tests, empty README** — verification is manual (hit endpoints against the live API).
 - Cron runs in-process: multiple Railway instances would double-run `refresh_busy_scores`.
 
