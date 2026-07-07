@@ -213,7 +213,7 @@ router.post("/", authMiddleware, async (req, res) => {
 router.patch("/:id", authMiddleware, async (req, res) => {
   const { data: venue } = await supabase.from("venues").select("owner_id").eq("id", req.params.id).single();
   if (!venue || venue.owner_id !== req.user.id) return res.status(403).json({ error: "Not authorized." });
-  const allowed = ["name", "description", "address", "phone", "website", "instagram", "cover_image_url", "heatmap_boost"];
+  const allowed = ["name", "description", "address", "phone", "website", "instagram", "cover_image_url"];
   const updates = Object.fromEntries(Object.entries(req.body).filter(([k]) => allowed.includes(k)));
   const { data } = await supabase.from("venues").update(updates).eq("id", req.params.id).select().single();
   res.json(data);

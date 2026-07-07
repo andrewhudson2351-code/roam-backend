@@ -39,11 +39,19 @@ router.get("/:venueId", authMiddleware, async (req, res) => {
 });
 
 router.patch("/:venueId/boost", authMiddleware, async (req, res) => {
-  if (!await requireOwner(req, res, req.params.venueId)) return;
-  const { enable } = req.body;
-  const boost_expires_at = enable ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : null;
-  await supabase.from("venues").update({ heatmap_boost: enable, boost_expires_at }).eq("id", req.params.venueId);
-  res.json({ success: true, heatmap_boost: enable });
+  try {
+    const { data: venue } = await supabase.from("venues").select("owner_id, plan").eq("id", req.params.venueId).single();
+    if (!venue || venue.owner_id !== req.user.id) return res.status(403).json({ error: "Access denied. You don't own this venue." });
+    const { enable } = req.body;
+    if (enable && venue.plan !== "premium") return res.status(403).json({ error: "Heatmap Boost requires the Premium plan. Upgrade to enable it." });
+    const boost_expires_at = enable ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : null;
+    const { error } = await supabase.from("venues").update({ heatmap_boost: !!enable, boost_expires_at }).eq("id", req.params.venueId);
+    if (error) throw error;
+    res.json({ success: true, heatmap_boost: !!enable });
+  } catch (err) {
+    console.error("boost update error:", err);
+    res.status(500).json({ error: "Failed to update boost." });
+  }
 });
 
 router.get("/:venueId/redemptions", authMiddleware, async (req, res) => {
