@@ -17,6 +17,7 @@
     "jsonwebtoken": "^9.0.2",
     "node-cron": "^4.6.0",
     "stripe": "^16.0.0",
+    "twilio": "^6.0.2",
     "uuid": "^9.0.0"
   },
   "devDependencies": {

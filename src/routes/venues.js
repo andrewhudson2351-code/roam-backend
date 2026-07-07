@@ -2,8 +2,20 @@ const express = require("express");
 const { supabase } = require("../config/supabase");
 const authMiddleware = require("../middleware/auth");
 const rateLimit = require("express-rate-limit");
+const { client: twilioClient, verifyService } = require("../config/twilio");
 
 const router = express.Router();
+
+// Normalise an arbitrary phone string to E.164.  Returns null if unable.
+function toE164(phone) {
+  if (!phone) return null;
+  const stripped = phone.trim();
+  if (/^\+\d{10,15}$/.test(stripped)) return stripped;
+  const digits = stripped.replace(/\D/g, '');
+  if (digits.length === 10) return '+1' + digits;
+  if (digits.length === 11 && digits.startsWith('1')) return '+' + digits;
+  return null;
+}
 
 const crowdReportLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -34,7 +46,7 @@ router.get("/mine", authMiddleware, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from("venues")
-      .select(`*, venue_busy_scores(busy_score, report_count)`)
+      .select("*, venue_busy_scores(busy_score, report_count)")
       .eq("owner_id", req.user.id);
     if (error) throw error;
     const venues = data.map(v => ({
@@ -48,7 +60,216 @@ router.get("/mine", authMiddleware, async (req, res) => {
   }
 });
 
-// POST /api/venues/:id/claim
+// POST /api/venues/:id/claim/start  -- initiate phone-verified claim
+router.post("/:id/claim/start", authMiddleware, async (req, res) => {
+  try {
+    const venueId = req.params.id;
+    const userId  = req.user.id;
+
+    // 1. Fetch venue
+    const { data: venue, error: venueError } = await supabase
+      .from("venues")
+      .select("id, name, owner_id, phone")
+      .eq("id", venueId)
+      .single();
+    if (venueError || !venue) return res.status(404).json({ error: "Venue not found." });
+
+    // 2. Already claimed?
+    if (venue.owner_id) {
+      const msg = venue.owner_id === userId
+        ? "You are already the verified owner of this venue."
+        : "This venue has already been claimed by another user.";
+      return res.status(409).json({ error: msg });
+    }
+
+    // 3. Re-claim check -- previous approved claim exists even though owner_id is null
+    const { data: prevClaim } = await supabase
+      .from("venue_claims")
+      .select("id")
+      .eq("venue_id", venueId)
+      .eq("status", "approved")
+      .maybeSingle();
+
+    if (prevClaim) {
+      await supabase
+        .from("venue_claims")
+        .upsert({
+          venue_id:     venueId,
+          user_id:      userId,
+          status:       "blocked",
+          is_flagged:   true,
+          flag_reason:  "re-claim: venue had previous owner",
+          submitted_at: new Date().toISOString(),
+        }, { onConflict: 'venue_id, user_id' });
+      return res.status(403).json({
+        error: "This venue was previously claimed. Your request has been submitted for manual review.",
+      });
+    }
+
+    // 4. Resolve phone number
+    const rawPhone = venue.phone || req.body.phone;
+    if (!rawPhone) {
+      return res.status(422).json({
+        error: "No phone number available. Please provide the venue's phone number.",
+      });
+    }
+    const e164phone = toE164(rawPhone);
+    if (!e164phone) {
+      return res.status(422).json({ error: "Could not parse phone number into a valid format." });
+    }
+    const phoneUserSupplied = !venue.phone;
+
+    // 5. Rate limit -- one OTP per (user, venue) per 3 minutes
+    const threeMinAgo = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+    const { data: recentClaim } = await supabase
+      .from("venue_claims")
+      .select("id")
+      .eq("venue_id", venueId)
+      .eq("user_id", userId)
+      .eq("status", "pending")
+      .gte("verification_started_at", threeMinAgo)
+      .maybeSingle();
+    if (recentClaim) {
+      return res.status(429).json({ error: "Please wait before requesting another code." });
+    }
+
+    // 6. Twilio Lookup -- validate number before sending (~$0.005/call)
+    try {
+      const lookup = await twilioClient.lookups.v2.phoneNumbers(e164phone).fetch();
+      if (!lookup.valid) {
+        return res.status(422).json({ error: "Invalid phone number." });
+      }
+    } catch {
+      return res.status(422).json({ error: "Invalid phone number." });
+    }
+
+    // 7. Send verification code (Twilio auto-falls back to voice for landlines)
+    await verifyService.verifications.create({ to: e164phone, channel: "sms" });
+
+    // 8. Upsert pending claim row
+    const now = new Date().toISOString();
+    const { error: upsertError } = await supabase
+      .from("venue_claims")
+      .upsert({
+        venue_id:                venueId,
+        user_id:                 userId,
+        status:                  "pending",
+        verified_phone:          e164phone,
+        verification_started_at: now,
+        submitted_at:            now,
+        approved_at:             null,
+        is_flagged:              phoneUserSupplied,
+        flag_reason:             phoneUserSupplied ? "user-supplied phone number" : null,
+      }, { onConflict: 'venue_id, user_id' });
+    if (upsertError) throw upsertError;
+
+    return res.json({ success: true, phone_last4: e164phone.slice(-4) });
+  } catch (err) {
+    console.error("claim/start error:", err);
+    res.status(500).json({ error: "Failed to start claim verification. Please try again." });
+  }
+});
+
+// POST /api/venues/:id/claim/confirm  -- submit OTP code to complete claim
+router.post("/:id/claim/confirm", authMiddleware, async (req, res) => {
+  try {
+    const venueId = req.params.id;
+    const userId  = req.user.id;
+    const { code } = req.body;
+
+    if (!code) return res.status(400).json({ error: "Verification code is required." });
+
+    // 1. Find the pending claim for this user + venue
+    const { data: claim, error: claimError } = await supabase
+      .from("venue_claims")
+      .select("*")
+      .eq("venue_id", venueId)
+      .eq("user_id", userId)
+      .eq("status", "pending")
+      .maybeSingle();
+    if (claimError || !claim) {
+      return res.status(404).json({ error: "No pending claim found. Please start the claim process first." });
+    }
+
+    // 2. TTL -- verification codes expire after 10 minutes
+    const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    if (claim.verification_started_at < tenMinAgo) {
+      await supabase
+        .from("venue_claims")
+        .update({ status: "expired" })
+        .eq("id", claim.id);
+      return res.status(410).json({
+        error: "Verification code expired. Please start the claim process again.",
+      });
+    }
+
+    // 3. Check OTP with Twilio Verify
+    let checkResult;
+    try {
+      checkResult = await verifyService.verificationChecks.create({
+        to:   claim.verified_phone,
+        code: String(code),
+      });
+    } catch {
+      return res.status(400).json({ error: "Incorrect verification code." });
+    }
+    if (checkResult.status !== "approved") {
+      return res.status(400).json({ error: "Incorrect verification code." });
+    }
+
+    // 4. Auto-flag checks (accumulate; preserve any flag from /start)
+    const flagReasons = [];
+    if (claim.flag_reason) flagReasons.push(claim.flag_reason);
+
+    // 4a. High claim volume: user would have 4+ approved claims total
+    const { count: approvedCount } = await supabase
+      .from("venue_claims")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("status", "approved");
+    if ((approvedCount || 0) >= 3) {
+      flagReasons.push("high claim volume");
+    }
+
+    // 4b. Re-claim double-check (belt-and-suspenders)
+    const { data: prevApproved } = await supabase
+      .from("venue_claims")
+      .select("id")
+      .eq("venue_id", venueId)
+      .eq("status", "approved")
+      .neq("user_id", userId)
+      .maybeSingle();
+    if (prevApproved && !flagReasons.includes("re-claim: venue had previous owner")) {
+      flagReasons.push("re-claim: venue had previous owner");
+    }
+
+    // 5. Mark claim approved
+    const { error: updateClaimError } = await supabase
+      .from("venue_claims")
+      .update({
+        status:      "approved",
+        approved_at: new Date().toISOString(),
+        is_flagged:  flagReasons.length > 0,
+        flag_reason: flagReasons.length > 0 ? flagReasons.join("; ") : null,
+      })
+      .eq("id", claim.id);
+    if (updateClaimError) throw updateClaimError;
+
+    // 6. Update venue -- set owner and mark verified
+    const { error: venueUpdateError } = await supabase
+      .from("venues")
+      .update({ owner_id: userId, is_verified: true })
+      .eq("id", venueId);
+    if (venueUpdateError) throw venueUpdateError;
+
+    return res.json({ success: true, message: "Venue claimed successfully." });
+  } catch (err) {
+    console.error("claim/confirm error:", err);
+    res.status(500).json({ error: "Failed to confirm claim. Please try again." });
+  }
+});
+
+// POST /api/venues/:id/claim  (legacy -- instant approval, no phone verification)
 router.post("/:id/claim", authMiddleware, async (req, res) => {
   try {
     const venueId = req.params.id;
@@ -63,7 +284,7 @@ router.post("/:id/claim", authMiddleware, async (req, res) => {
     if (venue.owner_id === userId) return res.status(409).json({ error: "You have already claimed this venue." });
     const { error: claimError } = await supabase
       .from("venue_claims")
-      .upsert({ venue_id: venueId, user_id: userId, status: "approved", approved_at: new Date().toISOString() }, { onConflict: 'venue_id' });
+      .upsert({ venue_id: venueId, user_id: userId, status: "approved", approved_at: new Date().toISOString() }, { onConflict: 'venue_id, user_id' });
     if (claimError) throw claimError;
     const { data: updated, error: updateError } = await supabase
       .from("venues")
@@ -79,53 +300,36 @@ router.post("/:id/claim", authMiddleware, async (req, res) => {
   }
 });
 
-
-// ── GET /api/venues/baseline?city=Charlotte ───────────
-// Add this route to venues.js BEFORE the router.get("/") route
-// Returns baseline busy scores from BestTime data for current day/hour
-
+// GET /api/venues/baseline?city=Charlotte
 router.get("/baseline", async (req, res) => {
   try {
     const { city } = req.query;
     if (!city) return res.status(400).json({ error: "city is required" });
-
-    // Current day and hour (0=Monday...6=Sunday, 0-23 hour)
     const now = new Date();
-    const dayInt = (now.getDay() + 6) % 7; // JS Sunday=0, BestTime Monday=0
+    const dayInt = (now.getDay() + 6) % 7;
     const hour = now.getHours();
-
-    // Get all venues in city with their typical hours for today
     const { data, error } = await supabase
       .from("venue_typical_hours")
-      .select(`
-        venue_id,
-        hour_data,
-        venues!inner(id, city, latitude, longitude)
-      `)
+      .select("venue_id, hour_data, venues!inner(id, city, latitude, longitude)")
       .eq("day_int", dayInt)
       .eq("venues.city", city);
-
     if (error) throw error;
-
     const baselines = data
       .filter(row => Array.isArray(row.hour_data) && row.hour_data.length === 24)
-      .map(row => ({
-        venue_id: row.venue_id,
-        baseline_score: Math.round(row.hour_data[hour] || 0),
-      }));
-
+      .map(row => ({ venue_id: row.venue_id, baseline_score: Math.round(row.hour_data[hour] || 0) }));
     res.json({ day_int: dayInt, hour, baselines });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to load baseline scores." });
   }
 });
+
 router.get("/", async (req, res) => {
   try {
     const { city, neighborhood, category } = req.query;
     let query = supabase
       .from("venues")
-      .select(`*, venue_busy_scores(busy_score, report_count, last_updated)`);
+      .select("*, venue_busy_scores(busy_score, report_count, last_updated)");
     if (city && city !== "all") query = query.eq("city", city);
     if (neighborhood) query = query.eq("neighborhood", neighborhood);
     if (category) query = query.eq("category", category);
@@ -138,7 +342,6 @@ router.get("/", async (req, res) => {
       report_count: v.venue_busy_scores?.report_count ?? 0,
       venue_busy_scores: undefined,
     }));
-
     venues.sort((a, b) => (b.busy_score || 0) - (a.busy_score || 0));
     res.json(venues);
   } catch (err) {
@@ -149,7 +352,7 @@ router.get("/", async (req, res) => {
 // GET /api/venues/:id
 router.get("/:id", async (req, res) => {
   try {
-    const { data: venue, error } = await supabase.from("venues").select(`*, venue_busy_scores(busy_score, report_count)`).eq("id", req.params.id).single();
+    const { data: venue, error } = await supabase.from("venues").select("*, venue_busy_scores(busy_score, report_count)").eq("id", req.params.id).single();
     if (error) return res.status(404).json({ error: "Venue not found." });
     const { data: deals } = await supabase.from("deals").select("*").eq("venue_id", req.params.id).eq("is_active", true).gt("expires_at", new Date().toISOString());
     const { data: stories } = await supabase.from("stories").select("id, caption, emoji, visibility, is_anonymous, like_count, created_at, users(username, display_name, avatar_url)").eq("venue_id", req.params.id).eq("visibility", "public").gt("expires_at", new Date().toISOString()).order("created_at", { ascending: false }).limit(10);
@@ -169,20 +372,15 @@ router.post("/:id/crowd", authMiddleware, crowdReportLimiter, async (req, res) =
     const avg = scores.reduce((sum, r) => sum + r.busy_level, 0) / scores.length;
     await supabase.from("venue_busy_scores").upsert({ venue_id: req.params.id, busy_score: Math.round(avg), report_count: scores.length, last_updated: new Date().toISOString() });
     await supabase.from("busy_score_history").insert({ venue_id: req.params.id, busy_score: Math.round(avg), recorded_at: new Date().toISOString() });
-
-    // Analytics write
     const today = new Date().toISOString().split("T")[0];
     await supabase.rpc("increment_analytics", { p_venue_id: req.params.id, p_date: today, p_field: "visitor_count" }).catch(() => null);
-
     res.json({ success: true, new_score: Math.round(avg) });
   } catch (err) {
     res.status(500).json({ error: "Failed to submit crowd report." });
   }
 });
 
-
-
-// POST /api/venues
+// POST /api/venues  (create)
 router.post("/", authMiddleware, async (req, res) => {
   try {
     const { name, address, neighborhood, latitude, longitude, category, description, phone, website, instagram } = req.body;
