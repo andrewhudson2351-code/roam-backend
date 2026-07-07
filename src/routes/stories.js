@@ -45,21 +45,30 @@ router.post("/:id/like", authMiddleware, async (req, res) => {
   try {
     const { data: existing } = await supabase.from("story_likes").select("*").eq("user_id", req.user.id).eq("story_id", req.params.id).single();
     if (existing) {
-      await supabase.from("story_likes").delete().eq("user_id", req.user.id).eq("story_id", req.params.id);
+      const { error } = await supabase.from("story_likes").delete().eq("user_id", req.user.id).eq("story_id", req.params.id);
+      if (error) throw error;
       return res.json({ liked: false });
     }
-    await supabase.from("story_likes").insert({ user_id: req.user.id, story_id: req.params.id });
+    const { error } = await supabase.from("story_likes").insert({ user_id: req.user.id, story_id: req.params.id });
+    if (error) throw error;
     res.json({ liked: true });
   } catch (err) {
+    console.error("story like error:", err);
     res.status(500).json({ error: "Failed to like story." });
   }
 });
 
 router.delete("/:id", authMiddleware, async (req, res) => {
-  const { data: story } = await supabase.from("stories").select("user_id").eq("id", req.params.id).single();
-  if (!story || story.user_id !== req.user.id) return res.status(403).json({ error: "Not authorized." });
-  await supabase.from("stories").delete().eq("id", req.params.id);
-  res.json({ success: true });
+  try {
+    const { data: story } = await supabase.from("stories").select("user_id").eq("id", req.params.id).single();
+    if (!story || story.user_id !== req.user.id) return res.status(403).json({ error: "Not authorized." });
+    const { error } = await supabase.from("stories").delete().eq("id", req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    console.error("story delete error:", err);
+    res.status(500).json({ error: "Failed to delete story." });
+  }
 });
 
 module.exports = router;

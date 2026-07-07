@@ -36,13 +36,20 @@ router.post("/:id/redeem", authMiddleware, async (req, res) => {
 });
 
 router.post("/:id/save", authMiddleware, async (req, res) => {
-  const { data: existing } = await supabase.from("deal_saves").select("*").eq("deal_id", req.params.id).eq("user_id", req.user.id).single();
-  if (existing) {
-    await supabase.from("deal_saves").delete().eq("deal_id", req.params.id).eq("user_id", req.user.id);
-    return res.json({ saved: false });
+  try {
+    const { data: existing } = await supabase.from("deal_saves").select("*").eq("deal_id", req.params.id).eq("user_id", req.user.id).single();
+    if (existing) {
+      const { error } = await supabase.from("deal_saves").delete().eq("deal_id", req.params.id).eq("user_id", req.user.id);
+      if (error) throw error;
+      return res.json({ saved: false });
+    }
+    const { error } = await supabase.from("deal_saves").insert({ deal_id: req.params.id, user_id: req.user.id });
+    if (error) throw error;
+    res.json({ saved: true });
+  } catch (err) {
+    console.error("deal save error:", err);
+    res.status(500).json({ error: "Failed to save deal." });
   }
-  await supabase.from("deal_saves").insert({ deal_id: req.params.id, user_id: req.user.id });
-  res.json({ saved: true });
 });
 
 router.post("/", authMiddleware, async (req, res) => {

@@ -49,15 +49,27 @@ router.post("/login", async (req, res) => {
 });
 
 router.get("/me", authMiddleware, async (req, res) => {
-  const { data } = await supabase.from("users").select("id, email, username, display_name, is_premium, avatar_url, location_sharing, home_city").eq("id", req.user.id).single();
-  res.json(data);
+  try {
+    const { data, error } = await supabase.from("users").select("id, email, username, display_name, is_premium, avatar_url, location_sharing, home_city").eq("id", req.user.id).single();
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    console.error("get profile error:", err);
+    res.status(500).json({ error: "Failed to load profile." });
+  }
 });
 
 router.patch("/me", authMiddleware, async (req, res) => {
-  const { display_name, avatar_url, location_sharing, home_city } = req.body;
-  const { data } = await supabase.from("users").update({ display_name, avatar_url, location_sharing, home_city }).eq("id", req.user.id).select("id, email, username, display_name, is_premium, avatar_url, location_sharing, home_city").single();
-  if (location_sharing === false) await supabase.from("friend_locations").delete().eq("user_id", req.user.id);
-  res.json(data);
+  try {
+    const { display_name, avatar_url, location_sharing, home_city } = req.body;
+    const { data, error } = await supabase.from("users").update({ display_name, avatar_url, location_sharing, home_city }).eq("id", req.user.id).select("id, email, username, display_name, is_premium, avatar_url, location_sharing, home_city").single();
+    if (error) throw error;
+    if (location_sharing === false) await supabase.from("friend_locations").delete().eq("user_id", req.user.id);
+    res.json(data);
+  } catch (err) {
+    console.error("update profile error:", err);
+    res.status(500).json({ error: "Failed to update profile." });
+  }
 });
 
 const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
