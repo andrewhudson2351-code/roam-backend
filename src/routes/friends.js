@@ -5,52 +5,99 @@ const authMiddleware = require("../middleware/auth");
 const router = express.Router();
 
 router.get("/", authMiddleware, async (req, res) => {
-  const { data } = await supabase.from("friendships").select(`*, requester:users!requester_id(id, username, display_name, avatar_url), addressee:users!addressee_id(id, username, display_name, avatar_url)`).or(`requester_id.eq.${req.user.id},addressee_id.eq.${req.user.id}`).eq("status", "accepted");
-  const friends = (data || []).map(f => ({ friendship_id: f.id, friend: f.requester_id === req.user.id ? f.addressee : f.requester }));
-  const friendIds = friends.map(f => f.friend.id);
-  const staleCutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-  const { data: locations } = await supabase.from("friend_locations").select("*, venues(name, neighborhood)").in("user_id", friendIds).gte("updated_at", staleCutoff);
-  const locationMap = Object.fromEntries((locations || []).map(l => [l.user_id, l]));
-  res.json(friends.map(f => ({ ...f, location: locationMap[f.friend.id] || null })));
+  try {
+    const { data, error } = await supabase.from("friendships").select(`*, requester:users!requester_id(id, username, display_name, avatar_url), addressee:users!addressee_id(id, username, display_name, avatar_url)`).or(`requester_id.eq.${req.user.id},addressee_id.eq.${req.user.id}`).eq("status", "accepted");
+    if (error) throw error;
+    const friends = (data || []).map(f => ({ friendship_id: f.id, friend: f.requester_id === req.user.id ? f.addressee : f.requester }));
+    const friendIds = friends.map(f => f.friend.id);
+    const staleCutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    const { data: locations, error: locError } = await supabase.from("friend_locations").select("*, venues(name, neighborhood)").in("user_id", friendIds).gte("updated_at", staleCutoff);
+    if (locError) throw locError;
+    const locationMap = Object.fromEntries((locations || []).map(l => [l.user_id, l]));
+    res.json(friends.map(f => ({ ...f, location: locationMap[f.friend.id] || null })));
+  } catch (err) {
+    console.error("friends list error:", err);
+    res.status(500).json({ error: "Failed to load friends." });
+  }
 });
 
 router.get("/requests", authMiddleware, async (req, res) => {
-  const { data } = await supabase
-    .from("friendships")
-    .select(`id, created_at, requester:users!requester_id(id, username, display_name, avatar_url)`)
-    .eq("addressee_id", req.user.id)
-    .eq("status", "pending")
-    .order("created_at", { ascending: false });
-  res.json((data || []).map(f => ({ friendship_id: f.id, requester: f.requester, created_at: f.created_at })));
+  try {
+    const { data, error } = await supabase
+      .from("friendships")
+      .select(`id, created_at, requester:users!requester_id(id, username, display_name, avatar_url)`)
+      .eq("addressee_id", req.user.id)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    res.json((data || []).map(f => ({ friendship_id: f.id, requester: f.requester, created_at: f.created_at })));
+  } catch (err) {
+    console.error("friend requests error:", err);
+    res.status(500).json({ error: "Failed to load friend requests." });
+  }
 });
 
 router.post("/request", authMiddleware, async (req, res) => {
-  const { username } = req.body;
-  const { data: target } = await supabase.from("users").select("id").eq("username", username).single();
-  if (!target) return res.status(404).json({ error: "User not found." });
-  if (target.id === req.user.id) return res.status(400).json({ error: "You can't friend yourself." });
-  const { error } = await supabase.from("friendships").insert({ requester_id: req.user.id, addressee_id: target.id });
-  if (error?.code === "23505") return res.status(409).json({ error: "Friend request already sent." });
-  res.json({ success: true });
+  try {
+    const { username } = req.body;
+    if (!username || typeof username !== "string") return res.status(400).json({ error: "Username is required." });
+    const { data: target } = await supabase.from("users").select("id").eq("username", username).single();
+    if (!target) return res.status(404).json({ error: "User not found." });
+    if (target.id === req.user.id) return res.status(400).json({ error: "You can't friend yourself." });
+    const { error } = await supabase.from("friendships").insert({ requester_id: req.user.id, addressee_id: target.id });
+    if (error) {
+      if (error.code === "23505") return res.status(409).json({ error: "Friend request already sent." });
+      throw error;
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error("friend request error:", err);
+    res.status(500).json({ error: "Failed to send friend request." });
+  }
 });
 
 router.patch("/:id/accept", authMiddleware, async (req, res) => {
-  const { data } = await supabase.from("friendships").update({ status: "accepted" }).eq("id", req.params.id).eq("addressee_id", req.user.id).select().single();
-  if (!data) return res.status(404).json({ error: "Request not found." });
-  res.json({ success: true });
+  try {
+    const { data, error } = await supabase.from("friendships").update({ status: "accepted" }).eq("id", req.params.id).eq("addressee_id", req.user.id).select().single();
+    if (error || !data) return res.status(404).json({ error: "Request not found." });
+    res.json({ success: true });
+  } catch (err) {
+    console.error("friend accept error:", err);
+    res.status(500).json({ error: "Failed to accept friend request." });
+  }
 });
 
 router.delete("/:id", authMiddleware, async (req, res) => {
-  await supabase.from("friendships").delete().eq("id", req.params.id).or(`requester_id.eq.${req.user.id},addressee_id.eq.${req.user.id}`);
-  res.json({ success: true });
+  try {
+    const { error } = await supabase.from("friendships").delete().eq("id", req.params.id).or(`requester_id.eq.${req.user.id},addressee_id.eq.${req.user.id}`);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    console.error("friend remove error:", err);
+    res.status(500).json({ error: "Failed to remove friend." });
+  }
 });
 
 router.patch("/location", authMiddleware, async (req, res) => {
-  const { venue_id, latitude, longitude, last_seen } = req.body;
-  const { data: user } = await supabase.from("users").select("location_sharing").eq("id", req.user.id).single();
-  if (!user?.location_sharing) return res.status(403).json({ error: "Enable location sharing in your profile settings first." });
-  await supabase.from("friend_locations").upsert({ user_id: req.user.id, venue_id, latitude, longitude, last_seen, updated_at: new Date().toISOString() });
-  res.json({ success: true });
+  try {
+    const { venue_id, latitude, longitude, last_seen } = req.body;
+    if (!venue_id) return res.status(400).json({ error: "venue_id is required." });
+    const lat = Number(latitude);
+    const lng = Number(longitude);
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
+      return res.status(400).json({ error: "latitude and longitude must be valid coordinates." });
+    }
+    const { data: venue } = await supabase.from("venues").select("id").eq("id", venue_id).single();
+    if (!venue) return res.status(400).json({ error: "Venue not found." });
+    const { data: user } = await supabase.from("users").select("location_sharing").eq("id", req.user.id).single();
+    if (!user?.location_sharing) return res.status(403).json({ error: "Enable location sharing in your profile settings first." });
+    const { error } = await supabase.from("friend_locations").upsert({ user_id: req.user.id, venue_id, latitude: lat, longitude: lng, last_seen, updated_at: new Date().toISOString() });
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    console.error("friend location error:", err);
+    res.status(500).json({ error: "Failed to update location." });
+  }
 });
 
 module.exports = router;
