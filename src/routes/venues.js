@@ -279,13 +279,12 @@ router.get("/baseline", async (req, res) => {
     const hour = now.getHours();
     const { data, error } = await supabase
       .from("venue_typical_hours")
-      .select("venue_id, hour_data, venues!inner(id, city, latitude, longitude)")
+      .select(`venue_id, hour_data->\${hour}:baseline_score, venues!inner(city)`)
       .eq("day_int", dayInt)
       .eq("venues.city", city);
     if (error) throw error;
     const baselines = data
-      .filter(row => Array.isArray(row.hour_data) && row.hour_data.length === 24)
-      .map(row => ({ venue_id: row.venue_id, baseline_score: Math.round(row.hour_data[hour] || 0) }));
+      .map(row => ({ venue_id: row.venue_id, baseline_score: Math.round(Number(row.baseline_score) || 0) }));
     res.json({ day_int: dayInt, hour, baselines });
   } catch (err) {
     console.error(err);
