@@ -298,7 +298,7 @@ router.get("/", async (req, res) => {
     const { city, neighborhood, category } = req.query;
     let query = supabase
       .from("venues")
-      .select("*, venue_busy_scores(busy_score, report_count, last_updated)");
+      .select("id, name, address, neighborhood, city, category, latitude, longitude, description, phone, website, instagram, is_verified, cover_image_url, plan, created_at, venue_busy_scores(busy_score, report_count, last_updated)");
     if (city && city !== "all") query = query.eq("city", city);
     if (neighborhood) query = query.eq("neighborhood", neighborhood);
     if (category) query = query.eq("category", category);
@@ -368,6 +368,7 @@ router.patch("/:id", authMiddleware, async (req, res) => {
   if (!venue || venue.owner_id !== req.user.id) return res.status(403).json({ error: "Not authorized." });
   const allowed = ["name", "description", "address", "phone", "website", "instagram", "cover_image_url"];
   const updates = Object.fromEntries(Object.entries(req.body).filter(([k]) => allowed.includes(k)));
+ 
   const { data } = await supabase.from("venues").update(updates).eq("id", req.params.id).select().single();
   res.json(data);
 });
