@@ -279,7 +279,7 @@ router.get("/baseline", async (req, res) => {
     const hour = now.getHours();
     const { data, error } = await supabase
       .from("venue_typical_hours")
-      .select(`venue_id, hour_data->\${hour}:baseline_score, venues!inner(city)`)
+      .select(`venue_id, baseline_score:hour_data->>${hour}, venues!inner(city)`)
       .eq("day_int", dayInt)
       .eq("venues.city", city);
     if (error) throw error;
