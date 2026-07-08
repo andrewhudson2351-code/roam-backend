@@ -301,7 +301,9 @@ router.get("/", async (req, res) => {
     if (city && city !== "all") query = query.eq("city", city);
     if (neighborhood) query = query.eq("neighborhood", neighborhood);
     if (category) query = query.eq("category", category);
-    query = query.order("busy_score", { referencedTable: "venue_busy_scores", ascending: false }).limit(500);
+    // referencedTable option only sorts rows inside the embed (no-op for to-one);
+    // ordering top-level venues by the embedded column requires this syntax
+    query = query.order("venue_busy_scores(busy_score)", { ascending: false, nullsFirst: false }).limit(500);
     const { data, error } = await query;
     if (error) throw error;
     const venues = data.map(v => ({
