@@ -302,7 +302,7 @@ router.get("/", async (req, res) => {
     if (city && city !== "all") query = query.eq("city", city);
     if (neighborhood) query = query.eq("neighborhood", neighborhood);
     if (category) query = query.eq("category", category);
-    query = query.limit(500);
+    query = query.order("busy_score", { referencedTable: "venue_busy_scores", ascending: false }).limit(500);
     const { data, error } = await query;
     if (error) throw error;
     const venues = data.map(v => ({
@@ -311,7 +311,7 @@ router.get("/", async (req, res) => {
       report_count: v.venue_busy_scores?.report_count ?? 0,
       venue_busy_scores: undefined,
     }));
-    venues.sort((a, b) => (b.busy_score || 0) - (a.busy_score || 0));
+    // sort handled by SQL ORDER BY on venue_busy_scores.busy_score
     res.json(venues);
   } catch (err) {
     res.status(500).json({ error: "Failed to load venues." });
