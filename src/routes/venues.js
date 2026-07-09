@@ -269,23 +269,45 @@ router.post("/:id/claim/confirm", authMiddleware, async (req, res) => {
   }
 });
 
+// hour_data (BestTime day_raw) is 6am-anchored LOCAL time: index 0 = 6:00am on
+// day_int's day, index 23 = 5:00am the NEXT day. Server clock is UTC on Railway.
+const CITY_TIMEZONES = { Nashville: "America/Chicago" };
+const DEFAULT_TIMEZONE = "America/New_York";
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+function baselinePosition(city, now) {
+  const tz = CITY_TIMEZONES[city] || DEFAULT_TIMEZONE;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz, weekday: "short", hour: "numeric", hourCycle: "h23",
+  }).formatToParts(now);
+  const localHour = Number(parts.find(p => p.type === "hour").value);
+  let dayInt = WEEKDAYS.indexOf(parts.find(p => p.type === "weekday").value);
+  let hourIndex;
+  if (localHour >= 6) {
+    hourIndex = localHour - 6;
+  } else {
+    // 0:00-5:59am belongs to the previous day's array
+    hourIndex = localHour + 18;
+    dayInt = (dayInt + 6) % 7;
+  }
+  return { dayInt, hourIndex, localHour };
+}
+
 // GET /api/venues/baseline?city=Charlotte
 router.get("/baseline", async (req, res) => {
   try {
     const { city } = req.query;
     if (!city) return res.status(400).json({ error: "city is required" });
-    const now = new Date();
-    const dayInt = (now.getDay() + 6) % 7;
-    const hour = now.getHours();
+    const { dayInt, hourIndex, localHour } = baselinePosition(city, new Date());
     const { data, error } = await supabase
       .from("venue_typical_hours")
-      .select(`venue_id, baseline_score:hour_data->>${hour}, venues!inner(city)`)
+      .select(`venue_id, baseline_score:hour_data->>${hourIndex}, venues!inner(city)`)
       .eq("day_int", dayInt)
       .eq("venues.city", city);
     if (error) throw error;
     const baselines = data
       .map(row => ({ venue_id: row.venue_id, baseline_score: Math.round(Number(row.baseline_score) || 0) }));
-    res.json({ day_int: dayInt, hour, baselines });
+    res.json({ day_int: dayInt, hour: localHour, baselines });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to load baseline scores." });
