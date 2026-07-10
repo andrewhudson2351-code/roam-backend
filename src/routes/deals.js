@@ -4,10 +4,19 @@ const authMiddleware = require("../middleware/auth");
 
 const router = express.Router();
 
+const DEAL_TAGS = [
+  "Wings", "Tacos", "Brunch", "Pizza", "Apps/Small Plates",
+  "Happy Hour", "Beer", "Cocktails", "Wine", "Shots",
+  "Live Music", "Trivia", "Karaoke", "Sports", "Ladies Night",
+];
+
 router.get("/", async (req, res) => {
   try {
-    const { city = "Charlotte" } = req.query;
-    const { data, error } = await supabase.from("deals").select(`*, venues(id, name, neighborhood, city, latitude, longitude, category)`).eq("is_active", true).gt("expires_at", new Date().toISOString()).order("save_count", { ascending: false });
+    const { city = "Charlotte", tag } = req.query;
+    if (tag && !DEAL_TAGS.includes(tag)) return res.status(400).json({ error: "Unknown tag." });
+    let query = supabase.from("deals").select(`*, venues(id, name, neighborhood, city, latitude, longitude, category)`).eq("is_active", true).gt("expires_at", new Date().toISOString()).order("save_count", { ascending: false });
+    if (tag) query = query.contains("tags", [tag]);
+    const { data, error } = await query;
     if (error) throw error;
     const deals = city ? data.filter(d => d.venues?.city === city) : data;
     res.json(deals);
@@ -58,11 +67,13 @@ router.post("/:id/save", authMiddleware, async (req, res) => {
 
 router.post("/", authMiddleware, async (req, res) => {
   try {
-    const { venue_id, title, description, detail, is_premium_only, expires_at } = req.body;
+    const { venue_id, title, description, detail, is_premium_only, expires_at, tags } = req.body;
     if (!venue_id || !title || !expires_at) return res.status(400).json({ error: "venue_id, title, and expires_at are required." });
+    if (!Array.isArray(tags) || tags.length < 1 || tags.length > 3 || tags.some(t => !DEAL_TAGS.includes(t)))
+      return res.status(400).json({ error: "Pick 1 to 3 deal tags." });
     const { data: venue } = await supabase.from("venues").select("owner_id").eq("id", venue_id).single();
     if (!venue || venue.owner_id !== req.user.id) return res.status(403).json({ error: "You don't own this venue." });
-    const { data, error } = await supabase.from("deals").insert({ venue_id, title, description, detail, is_premium_only: is_premium_only || false, expires_at }).select().single();
+    const { data, error } = await supabase.from("deals").insert({ venue_id, title, description, detail, is_premium_only: is_premium_only || false, expires_at, tags }).select().single();
     if (error) throw error;
     res.status(201).json(data);
   } catch (err) {
