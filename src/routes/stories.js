@@ -14,7 +14,8 @@ router.get("/", authMiddleware, async (req, res) => {
       .eq("status", "accepted");
     const friendIds = (fr || []).map(f => f.requester_id === req.user.id ? f.addressee_id : f.requester_id);
     const allowedAuthors = [req.user.id, ...friendIds].join(",");
-    let query = supabase.from("stories").select(`*, venues(id, name, neighborhood), users(username, display_name, avatar_url)`)
+    // users must be disambiguated: story_likes adds a second stories<->users relationship (PGRST201)
+    let query = supabase.from("stories").select(`*, venues(id, name, neighborhood), users!stories_user_id_fkey(username, display_name, avatar_url)`)
       .gt("expires_at", new Date().toISOString())
       .or(`visibility.eq.public,user_id.in.(${allowedAuthors})`)
       .order("created_at", { ascending: false })
