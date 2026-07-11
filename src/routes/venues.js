@@ -483,9 +483,12 @@ router.post("/:id/crowd", authMiddleware, crowdReportLimiter, async (req, res) =
     await supabase.from("venue_busy_scores").upsert({ venue_id: req.params.id, busy_score: Math.round(avg), report_count: scores.length, last_updated: new Date().toISOString() });
     await supabase.from("busy_score_history").insert({ venue_id: req.params.id, busy_score: Math.round(avg), recorded_at: new Date().toISOString() });
     const today = new Date().toISOString().split("T")[0];
-    await supabase.rpc("increment_analytics", { p_venue_id: req.params.id, p_date: today, p_field: "visitor_count" }).catch(() => null);
+    // best-effort analytics; PostgrestBuilder has no .catch, so check the error field
+    const { error: analyticsError } = await supabase.rpc("increment_analytics", { p_venue_id: req.params.id, p_date: today, p_field: "visitor_count" });
+    if (analyticsError) console.error("increment_analytics failed:", analyticsError.message);
     res.json({ success: true, new_score: Math.round(avg) });
   } catch (err) {
+    console.error("crowd report error:", err);
     res.status(500).json({ error: "Failed to submit crowd report." });
   }
 });
