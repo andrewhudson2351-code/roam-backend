@@ -1,8 +1,11 @@
 const express = require("express");
+const jwt = require("jsonwebtoken");
 const { supabase } = require("../config/supabase");
 const authMiddleware = require("../middleware/auth");
 const rateLimit = require("express-rate-limit");
 const { client: twilioClient, verifyService } = require("../config/twilio");
+const { PLACES_KEY, fetchPlaceDetails, resolvePhotoUri } = require("../config/places");
+const { isDealLiveNow } = require("./deals");
 
 const router = express.Router();
 
@@ -340,16 +343,132 @@ router.get("/", async (req, res) => {
   }
 });
 
+// Google's ToS lets us store place IDs forever but other Places content only
+// temporarily — refresh the cached details monthly.
+const PLACE_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+async function getPlaceData(venue) {
+  const { data: cached } = await supabase.from("venue_place_cache").select("*").eq("venue_id", venue.id).maybeSingle();
+  const fresh = cached && Date.now() - new Date(cached.fetched_at).getTime() < PLACE_CACHE_TTL_MS;
+  if (fresh || !venue.google_place_id || !PLACES_KEY) return cached;
+  try {
+    const d = await fetchPlaceDetails(venue.google_place_id);
+    const row = {
+      venue_id: venue.id,
+      photos: (d.photos || []).slice(0, 8).map(p => ({
+        name: p.name,
+        width: p.widthPx,
+        height: p.heightPx,
+        attribution: p.authorAttributions?.[0]?.displayName || null,
+        attribution_uri: p.authorAttributions?.[0]?.uri || null,
+      })),
+      hours: d.regularOpeningHours
+        ? { descriptions: d.regularOpeningHours.weekdayDescriptions || null, periods: d.regularOpeningHours.periods || null }
+        : null,
+      phone: d.nationalPhoneNumber || null,
+      website: d.websiteUri || null,
+      google_maps_uri: d.googleMapsUri || null,
+      editorial_summary: d.editorialSummary?.text || null,
+      fetched_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from("venue_place_cache").upsert(row);
+    if (error) throw error;
+    return row;
+  } catch (err) {
+    console.error("place details fetch failed:", err.message);
+    return cached; // stale beats nothing
+  }
+}
+
+async function getFriendsHere(userId, venueId) {
+  const { data: friendships } = await supabase
+    .from("friendships")
+    .select("requester_id, addressee_id")
+    .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`)
+    .eq("status", "accepted");
+  const friendIds = (friendships || []).map(f => (f.requester_id === userId ? f.addressee_id : f.requester_id));
+  if (!friendIds.length) return [];
+  const staleCutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  const { data: locs, error } = await supabase
+    .from("friend_locations")
+    .select("user_id, updated_at, users!inner(id, username, display_name, avatar_url, location_sharing)")
+    .eq("venue_id", venueId)
+    .in("user_id", friendIds)
+    .gte("updated_at", staleCutoff)
+    .eq("users.location_sharing", true);
+  if (error) throw error;
+  return (locs || []).map(l => ({
+    id: l.users.id,
+    username: l.users.username,
+    display_name: l.users.display_name,
+    avatar_url: l.users.avatar_url,
+  }));
+}
+
 // GET /api/venues/:id
 router.get("/:id", async (req, res) => {
   try {
     const { data: venue, error } = await supabase.from("venues").select("*, venue_busy_scores(busy_score, report_count)").eq("id", req.params.id).single();
     if (error) return res.status(404).json({ error: "Venue not found." });
-    const { data: deals } = await supabase.from("deals").select("*").eq("venue_id", req.params.id).eq("is_active", true).gt("expires_at", new Date().toISOString());
-    const { data: stories } = await supabase.from("stories").select("id, caption, emoji, visibility, is_anonymous, like_count, created_at, users!stories_user_id_fkey(username, display_name, avatar_url)").eq("venue_id", req.params.id).eq("visibility", "public").gt("expires_at", new Date().toISOString()).order("created_at", { ascending: false }).limit(10);
-    res.json({ ...venue, busy_score: venue.venue_busy_scores?.busy_score ?? 0, deals: deals || [], stories: stories || [] });
+    const now = new Date();
+    const { dayInt, hourIndex } = baselinePosition(venue.city, now);
+
+    const [place, { data: deals }, { data: stories }, { data: typical }, friendsHere] = await Promise.all([
+      getPlaceData(venue),
+      supabase.from("deals").select("*").eq("venue_id", req.params.id).eq("is_active", true).gt("expires_at", now.toISOString()),
+      supabase.from("stories").select("id, caption, emoji, visibility, is_anonymous, like_count, created_at, users!stories_user_id_fkey(username, display_name, avatar_url)").eq("venue_id", req.params.id).eq("visibility", "public").gt("expires_at", now.toISOString()).order("created_at", { ascending: false }).limit(10),
+      supabase.from("venue_typical_hours").select("day_int, hour_data").eq("venue_id", req.params.id).eq("day_int", dayInt).maybeSingle(),
+      (async () => {
+        const authHeader = req.headers.authorization;
+        if (!authHeader?.startsWith("Bearer ")) return null;
+        try {
+          const user = jwt.verify(authHeader.split(" ")[1], process.env.JWT_SECRET);
+          return await getFriendsHere(user.id, req.params.id);
+        } catch { return null; }
+      })(),
+    ]);
+
+    res.json({
+      ...venue,
+      stripe_customer_id: undefined,
+      venue_busy_scores: undefined,
+      busy_score: venue.venue_busy_scores?.busy_score ?? 0,
+      report_count: venue.venue_busy_scores?.report_count ?? 0,
+      deals: (deals || []).map(d => ({ ...d, is_live_now: isDealLiveNow({ ...d, venues: { city: venue.city } }, now) })),
+      stories: stories || [],
+      place: place
+        ? {
+            photos: (place.photos || []).map((p, i) => ({ index: i, width: p.width, height: p.height, attribution: p.attribution, attribution_uri: p.attribution_uri })),
+            hours: place.hours,
+            phone: place.phone,
+            website: place.website,
+            google_maps_uri: place.google_maps_uri,
+            editorial_summary: place.editorial_summary,
+          }
+        : null,
+      typical_today: typical ? { day_int: typical.day_int, hour_data: typical.hour_data, now_index: hourIndex } : null,
+      friends_here: friendsHere,
+    });
   } catch (err) {
+    console.error("venue detail error:", err);
     res.status(500).json({ error: "Failed to load venue." });
+  }
+});
+
+// GET /api/venues/:id/photos/:idx — 302 to the Google-hosted image; the
+// resolved URL is cached in-process so repeat views don't bill.
+router.get("/:id/photos/:idx", async (req, res) => {
+  try {
+    const idx = Number(req.params.idx);
+    const { data: cache } = await supabase.from("venue_place_cache").select("photos").eq("venue_id", req.params.id).maybeSingle();
+    const photo = Array.isArray(cache?.photos) ? cache.photos[idx] : null;
+    if (!photo?.name) return res.status(404).json({ error: "Photo not found." });
+    const uri = await resolvePhotoUri(photo.name);
+    if (!uri) return res.status(404).json({ error: "Photo not available." });
+    res.redirect(302, uri);
+  } catch (err) {
+    console.error("venue photo error:", err.message);
+    res.status(500).json({ error: "Failed to load photo." });
   }
 });
 
