@@ -10,6 +10,26 @@ const DEAL_TAGS = [
   "Live Music", "Trivia", "Karaoke", "Sports", "Ladies Night",
 ];
 
+// Recurring deals get a far-future expiry so every existing expires_at filter
+// passes; actual visibility is governed by the day/time window check below.
+const RECURRING_SENTINEL = "2099-01-01T00:00:00Z";
+const { CITY_TIMEZONES, DEFAULT_TIMEZONE } = require("../config/timezones");
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function isDealLiveNow(deal, now = new Date()) {
+  if (!deal.recur_days) return true;
+  const tz = CITY_TIMEZONES[deal.venues?.city] || DEFAULT_TIMEZONE;
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short", hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(now);
+  const day = DAY_NAMES.indexOf(parts.find(p => p.type === "weekday").value);
+  const mins = Number(parts.find(p => p.type === "hour").value) * 60 + Number(parts.find(p => p.type === "minute").value);
+  const [sh, sm] = deal.recur_start.split(":").map(Number);
+  const [eh, em] = deal.recur_end.split(":").map(Number);
+  const start = sh * 60 + sm, end = eh * 60 + em;
+  if (end > start) return deal.recur_days.includes(day) && mins >= start && mins < end;
+  // window wraps past midnight: live if it started today, or is still running from yesterday
+  return (deal.recur_days.includes(day) && mins >= start) || (deal.recur_days.includes((day + 6) % 7) && mins < end);
+}
+
 router.get("/", async (req, res) => {
   try {
     const { city = "Charlotte", tag } = req.query;
@@ -18,7 +38,8 @@ router.get("/", async (req, res) => {
     if (tag) query = query.contains("tags", [tag]);
     const { data, error } = await query;
     if (error) throw error;
-    const deals = city ? data.filter(d => d.venues?.city === city) : data;
+    const live = data.filter(d => isDealLiveNow(d));
+    const deals = city ? live.filter(d => d.venues?.city === city) : live;
     res.json(deals);
   } catch (err) {
     res.status(500).json({ error: "Failed to load deals." });
@@ -27,9 +48,10 @@ router.get("/", async (req, res) => {
 
 router.post("/:id/redeem", authMiddleware, async (req, res) => {
   try {
-    const { data: deal } = await supabase.from("deals").select("*, venues(owner_id)").eq("id", req.params.id).single();
+    const { data: deal } = await supabase.from("deals").select("*, venues(owner_id, city)").eq("id", req.params.id).single();
     if (!deal) return res.status(404).json({ error: "Deal not found." });
     if (!deal.is_active || new Date(deal.expires_at) < new Date()) return res.status(400).json({ error: "This deal has expired." });
+    if (!isDealLiveNow(deal)) return res.status(400).json({ error: "This deal isn't active right now — check its schedule." });
     if (deal.is_premium_only) {
       const { data: user } = await supabase.from("users").select("is_premium, premium_expires_at").eq("id", req.user.id).single();
       const isPremium = user?.is_premium && new Date(user.premium_expires_at) > new Date();
@@ -67,13 +89,24 @@ router.post("/:id/save", authMiddleware, async (req, res) => {
 
 router.post("/", authMiddleware, async (req, res) => {
   try {
-    const { venue_id, title, description, detail, is_premium_only, expires_at, tags } = req.body;
-    if (!venue_id || !title || !expires_at) return res.status(400).json({ error: "venue_id, title, and expires_at are required." });
+    const { venue_id, title, description, detail, is_premium_only, expires_at, tags, recur_days, recur_start, recur_end } = req.body;
+    if (!venue_id || !title) return res.status(400).json({ error: "venue_id and title are required." });
     if (!Array.isArray(tags) || tags.length < 1 || tags.length > 3 || tags.some(t => !DEAL_TAGS.includes(t)))
       return res.status(400).json({ error: "Pick 1 to 3 deal tags." });
+    const recurring = recur_days != null || recur_start != null || recur_end != null;
+    let recurrence = { recur_days: null, recur_start: null, recur_end: null };
+    if (recurring) {
+      if (!Array.isArray(recur_days) || recur_days.length < 1 || recur_days.length > 7 || recur_days.some(d => !Number.isInteger(d) || d < 0 || d > 6))
+        return res.status(400).json({ error: "Pick at least one day of the week." });
+      if (!/^\d{2}:\d{2}$/.test(recur_start || "") || !/^\d{2}:\d{2}$/.test(recur_end || "") || recur_start === recur_end)
+        return res.status(400).json({ error: "A start and end time are required." });
+      recurrence = { recur_days: [...new Set(recur_days)].sort(), recur_start, recur_end };
+    } else if (!expires_at) {
+      return res.status(400).json({ error: "expires_at is required for one-time deals." });
+    }
     const { data: venue } = await supabase.from("venues").select("owner_id").eq("id", venue_id).single();
     if (!venue || venue.owner_id !== req.user.id) return res.status(403).json({ error: "You don't own this venue." });
-    const { data, error } = await supabase.from("deals").insert({ venue_id, title, description, detail, is_premium_only: is_premium_only || false, expires_at, tags }).select().single();
+    const { data, error } = await supabase.from("deals").insert({ venue_id, title, description, detail, is_premium_only: is_premium_only || false, expires_at: recurring ? RECURRING_SENTINEL : expires_at, tags, ...recurrence }).select().single();
     if (error) throw error;
     res.status(201).json(data);
   } catch (err) {

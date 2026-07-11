@@ -271,8 +271,7 @@ router.post("/:id/claim/confirm", authMiddleware, async (req, res) => {
 
 // hour_data (BestTime day_raw) is 6am-anchored LOCAL time: index 0 = 6:00am on
 // day_int's day, index 23 = 5:00am the NEXT day. Server clock is UTC on Railway.
-const CITY_TIMEZONES = { Nashville: "America/Chicago" };
-const DEFAULT_TIMEZONE = "America/New_York";
+const { CITY_TIMEZONES, DEFAULT_TIMEZONE } = require("../config/timezones");
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 function baselinePosition(city, now) {
