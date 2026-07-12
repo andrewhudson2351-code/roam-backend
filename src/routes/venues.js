@@ -296,23 +296,97 @@ function baselinePosition(city, now) {
 }
 
 // GET /api/venues/baseline?city=Charlotte
+// or   /api/venues/baseline?swLat=&swLng=&neLat=&neLng=
+// The city form must stay supported: App Store build 9 calls it.
 router.get("/baseline", async (req, res) => {
   try {
     const { city } = req.query;
-    if (!city) return res.status(400).json({ error: "city is required" });
-    const { dayInt, hourIndex, localHour } = baselinePosition(city, new Date());
+    const bounds = parseBounds(req.query);
+    if (!city && !bounds) return res.status(400).json({ error: "city or bounds (swLat, swLng, neLat, neLng) required" });
+    const now = new Date();
+
+    if (city) {
+      const { dayInt, hourIndex, localHour } = baselinePosition(city, now);
+      const { data, error } = await supabase
+        .from("venue_typical_hours")
+        .select(`venue_id, baseline_score:hour_data->>${hourIndex}, venues!inner(city)`)
+        .eq("day_int", dayInt)
+        .eq("venues.city", city);
+      if (error) throw error;
+      const baselines = data
+        .map(row => ({ venue_id: row.venue_id, baseline_score: Math.round(Number(row.baseline_score) || 0) }));
+      return res.json({ day_int: dayInt, hour: localHour, baselines });
+    }
+
+    // Bounds mode: venues in view can span timezones, so day_int/hour_index
+    // vary per venue's city. Fetch every day_int that any known timezone is
+    // currently in (at most 2 distinct values), then filter per row.
+    const posByCity = {};
+    const positionFor = c => {
+      if (!posByCity[c]) posByCity[c] = baselinePosition(c, now);
+      return posByCity[c];
+    };
+    const candidateDayInts = [...new Set(
+      [...Object.keys(CITY_TIMEZONES), "__default__"].map(c => positionFor(c).dayInt)
+    )];
     const { data, error } = await supabase
       .from("venue_typical_hours")
-      .select(`venue_id, baseline_score:hour_data->>${hourIndex}, venues!inner(city)`)
-      .eq("day_int", dayInt)
-      .eq("venues.city", city);
+      .select("venue_id, day_int, hour_data, venues!inner(city, latitude, longitude)")
+      .in("day_int", candidateDayInts)
+      .gte("venues.latitude", bounds.swLat).lte("venues.latitude", bounds.neLat)
+      .gte("venues.longitude", bounds.swLng).lte("venues.longitude", bounds.neLng);
     if (error) throw error;
-    const baselines = data
-      .map(row => ({ venue_id: row.venue_id, baseline_score: Math.round(Number(row.baseline_score) || 0) }));
-    res.json({ day_int: dayInt, hour: localHour, baselines });
+    const baselines = [];
+    for (const row of data) {
+      const { dayInt, hourIndex } = positionFor(row.venues.city);
+      if (row.day_int !== dayInt) continue;
+      const score = Array.isArray(row.hour_data) ? row.hour_data[hourIndex] : null;
+      baselines.push({ venue_id: row.venue_id, baseline_score: Math.round(Number(score) || 0) });
+    }
+    res.json({ baselines });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to load baseline scores." });
+  }
+});
+
+function parseBounds(query) {
+  const swLat = parseFloat(query.swLat);
+  const swLng = parseFloat(query.swLng);
+  const neLat = parseFloat(query.neLat);
+  const neLng = parseFloat(query.neLng);
+  if (![swLat, swLng, neLat, neLng].every(Number.isFinite)) return null;
+  return { swLat, swLng, neLat, neLng };
+}
+
+// GET /api/venues/bounds?swLat=&swLng=&neLat=&neLng=&category=
+// Assumes swLng <= neLng (no antimeridian crossing — all venues are US East Coast).
+router.get("/bounds", async (req, res) => {
+  try {
+    const bounds = parseBounds(req.query);
+    if (!bounds) return res.status(400).json({ error: "swLat, swLng, neLat, neLng are required numbers." });
+    const { category } = req.query;
+    let query = supabase
+      .from("venues")
+      .select("id, name, address, neighborhood, city, category, latitude, longitude, description, phone, website, instagram, is_verified, cover_image_url, plan, created_at, venue_busy_scores(busy_score, report_count, last_updated)")
+      .gte("latitude", bounds.swLat).lte("latitude", bounds.neLat)
+      .gte("longitude", bounds.swLng).lte("longitude", bounds.neLng);
+    if (category) query = query.eq("category", category);
+    // Cap huge viewports to the busiest venues (ordering is busy_score DESC).
+    // 400 > Charlotte's 390 venues, so a single-city view is never truncated.
+    query = query.order("venue_busy_scores(busy_score)", { ascending: false, nullsFirst: false }).limit(400);
+    const { data, error } = await query;
+    if (error) throw error;
+    const venues = data.map(v => ({
+      ...v,
+      busy_score: v.venue_busy_scores?.busy_score ?? 0,
+      report_count: v.venue_busy_scores?.report_count ?? 0,
+      venue_busy_scores: undefined,
+    }));
+    res.json(venues);
+  } catch (err) {
+    console.error("venues/bounds error:", err);
+    res.status(500).json({ error: "Failed to load venues." });
   }
 });
 
