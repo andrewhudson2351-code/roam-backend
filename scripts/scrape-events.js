@@ -124,7 +124,7 @@ function eventLinks(html, baseUrl) {
 }
 
 async function crawlVenue(v) {
-  const out = { venue_id: v.id, name: v.name, website: v.website, jsonldEvents: [], pages: [] };
+  const out = { venue_id: v.id, name: v.name, website: v.website, neighborhood: v.neighborhood, jsonldEvents: [], pages: [] };
   if (SOCIAL.test(v.website)) { out.status = "social-only"; return out; }
   const home = await get(v.website);
   if (home.error) { out.status = `home-failed: ${home.error}`; return out; }

@@ -5,15 +5,19 @@
 // - inserts with source='scraped', is_active=false (nothing goes live until reviewed)
 //
 // Usage:
-//   railway variables --json | node scripts/curate-scraped-events.js --dry
-//   railway variables --json | node scripts/curate-scraped-events.js
+//   railway variables --json | node scripts/curate-scraped-events.js --city Boston --dry
+//   railway variables --json | node scripts/curate-scraped-events.js --city Boston --activate
 
 const fs = require("fs");
 const path = require("path");
 const { createClient } = require("@supabase/supabase-js");
 
 const DRY = process.argv.includes("--dry");
-const REPORT = path.join(__dirname, "scrape-report-charlotte.json");
+const ACTIVATE = process.argv.includes("--activate");
+const cityArgIdx = process.argv.indexOf("--city");
+const CITY = cityArgIdx !== -1 ? process.argv[cityArgIdx + 1] : "Charlotte";
+const REPORT = path.join(__dirname, `scrape-report-${CITY.toLowerCase().replace(/\s+/g, "-")}.json`);
+const { CITY_TIMEZONES, DEFAULT_TIMEZONE } = require("../src/config/timezones");
 const HORIZON_DAYS = 60;
 const MAX_PER_VENUE = 10;
 
@@ -22,9 +26,9 @@ const SKIP_VENUE_IDS = new Set([
   "5b6d9f19-fe7b-47c0-8465-5d858d64d630", // "Petra's"
   "8f0421f5-93f0-4e74-84a6-992dd78dba09", // "Tequila House Nightclub"
 ]);
-const EXTERNAL_RE = /greensboro|tassels|the pony/i;
+const EXTERNAL_RE = /greensboro|tassels|the pony|albany/i;
 // "closed" placeholders, cancellations, and events we can't attribute to one venue
-const EXCLUDE_TITLE_RE = /^closed$|cancell?ed|bikini car wash/i;
+const EXCLUDE_TITLE_RE = /^closed$|cancell?ed|bikini car wash|private party/i;
 
 const TAG_RULES = [
   [/karaoke/i, "Karaoke"],
@@ -49,6 +53,18 @@ function decode(s) {
     .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"').replace(/&nbsp;/g, " ").replace(/&#x27;|&apos;/g, "'")
     .replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+}
+
+// verified honest-UTC feeds; everyone else mislabels local time as UTC/Z, so literal parse is the default
+const UTC_FEED_VENUES = new Set(["Chris' Jazz Cafe"]);
+
+function utcToCity(s) {
+  const d = new Date(s);
+  if (isNaN(d)) return null;
+  const tz = CITY_TIMEZONES[CITY] || DEFAULT_TIMEZONE;
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(d);
+  const g = (t) => parts.find((x) => x.type === t).value;
+  return { date: `${g("year")}-${g("month")}-${g("day")}`, time: `${g("hour")}:${g("minute")}` };
 }
 
 // wall-clock as written; venue feeds mislabel timezones constantly
@@ -106,8 +122,39 @@ function readStdinEnv() {
   });
 }
 
-function todayCharlotte() {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+function todayInCity() {
+  const tz = CITY_TIMEZONES[CITY] || DEFAULT_TIMEZONE;
+  return new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+}
+
+const normName = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+const normWeb = (s) => s.toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/+$/, "");
+
+// venues that share a website AND have near-identical names are duplicate DB rows;
+// junk rows have a street address stored in `neighborhood` (e.g. "116 West 5th Street")
+function detectDuplicates(report) {
+  const skip = new Set();
+  const byWeb = new Map();
+  for (const v of report) {
+    if (!v.website || SKIP_VENUE_IDS.has(v.venue_id)) continue;
+    const k = normWeb(v.website);
+    if (!byWeb.has(k)) byWeb.set(k, []);
+    byWeb.get(k).push(v);
+  }
+  for (const group of byWeb.values()) {
+    for (let i = 0; i < group.length; i++) {
+      for (let j = i + 1; j < group.length; j++) {
+        const a = group[i], b = group[j];
+        const an = normName(a.name), bn = normName(b.name);
+        if (!an.includes(bn) && !bn.includes(an)) continue;
+        const junk = [a, b].filter((v) => /\d/.test(v.neighborhood || ""));
+        const drop = junk.length === 1 ? junk[0] : (an.length >= bn.length ? b : a);
+        skip.add(drop.venue_id);
+        console.log(`DUPLICATE: skipping "${drop.name}" (${drop.venue_id}) — dup of "${(drop === a ? b : a).name}"`);
+      }
+    }
+  }
+  return skip;
 }
 
 async function main() {
@@ -116,12 +163,13 @@ async function main() {
   const supabase = createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"));
 
   const report = JSON.parse(fs.readFileSync(REPORT, "utf8"));
-  const today = todayCharlotte();
+  const today = todayInCity();
   const horizon = addDaysStr(today, HORIZON_DAYS);
+  const dupSkip = detectDuplicates(report);
   const rows = [];
 
   for (const v of report) {
-    if (!v.jsonldEvents?.length || SKIP_VENUE_IDS.has(v.venue_id)) continue;
+    if (!v.jsonldEvents?.length || SKIP_VENUE_IDS.has(v.venue_id) || dupSkip.has(v.venue_id)) continue;
 
     // normalize + filter
     const seen = new Set();
@@ -130,10 +178,15 @@ async function main() {
       const name = decode(e.name);
       if (!name || EXCLUDE_TITLE_RE.test(name)) continue;
       if (!belongsToVenue(name, v.name, e.location)) continue;
-      const start = parseLocal(e.startDate);
+      const utcFeed = UTC_FEED_VENUES.has(v.name) && /Z$/.test(String(e.startDate || ""));
+      const start = utcFeed ? utcToCity(e.startDate) : parseLocal(e.startDate);
       if (!start || !start.time) continue; // no invented times for date-only feeds
-      const endParsed = parseLocal(e.endDate);
-      if (start.time === "00:00" && endParsed?.time === "23:59") continue; // fake all-day window, feed has no real times
+      const endParsed = utcFeed && e.endDate ? utcToCity(e.endDate) : parseLocal(e.endDate);
+      // fake all-day window (00:00-23:59, sometimes offset-shifted e.g. 03:00-02:59) — feed has no real times
+      if (endParsed?.time) {
+        const mins = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+        if ((mins(endParsed.time) - mins(start.time) + 1440) % 1440 >= 1380) continue;
+      }
       let endTime = endParsed?.time && endParsed.time !== start.time ? endParsed.time : addHours(start.time, 3);
       const key = `${name.toLowerCase()}|${start.date}|${start.time}`;
       if (seen.has(key)) continue;
@@ -169,7 +222,7 @@ async function main() {
           recur_days: days, recur_start: group[0].time, recur_end: group[0].endTime,
           // feeds only publish a few weeks out — a series still running today is treated as ongoing
           recur_until: last.date >= today ? null : last.date,
-          source: "scraped", is_active: false,
+          source: "scraped", is_active: ACTIVATE,
           _sort: group.find(e => e.date >= today)?.date || last.date, _kind: "recurring",
         });
       } else {
@@ -181,7 +234,7 @@ async function main() {
             tags: inferTags(`${e.name} ${e.description || ""}`, e.name, v.name),
             event_date: e.date, start_time: e.time, end_time: e.endTime,
             recur_days: null, recur_start: null, recur_end: null, recur_until: null,
-            source: "scraped", is_active: false,
+            source: "scraped", is_active: ACTIVATE,
             _sort: e.date, _kind: "one-time",
           });
         }
@@ -196,7 +249,7 @@ async function main() {
     if (!byVenue.has(r.venueName)) byVenue.set(r.venueName, []);
     byVenue.get(r.venueName).push(r);
   }
-  console.log(`Curated ${rows.length} events across ${byVenue.size} venues (as of ${today})\n`);
+  console.log(`Curated ${rows.length} events across ${byVenue.size} ${CITY} venues (as of ${today})\n`);
   for (const [venue, list] of byVenue) {
     console.log(`## ${venue} (${list.length})`);
     for (const r of list) {
@@ -214,7 +267,7 @@ async function main() {
     const { error } = await supabase.from("events").insert(clean.slice(i, i + 50));
     if (error) throw new Error(`insert failed at chunk ${i}: ${error.message}`);
   }
-  console.log(`\nInserted ${clean.length} events (source='scraped', is_active=false).`);
+  console.log(`\nInserted ${clean.length} events (source='scraped', is_active=${ACTIVATE}).`);
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
