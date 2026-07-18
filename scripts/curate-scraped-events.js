@@ -26,9 +26,9 @@ const SKIP_VENUE_IDS = new Set([
   "5b6d9f19-fe7b-47c0-8465-5d858d64d630", // "Petra's"
   "8f0421f5-93f0-4e74-84a6-992dd78dba09", // "Tequila House Nightclub"
 ]);
-const EXTERNAL_RE = /greensboro|tassels|the pony|albany/i;
+const EXTERNAL_RE = /greensboro|tassels|the pony|albany|\btroy\b|saratoga arts|\bno fun\b/i;
 // "closed" placeholders, cancellations, and events we can't attribute to one venue
-const EXCLUDE_TITLE_RE = /^closed$|cancell?ed|bikini car wash|private party/i;
+const EXCLUDE_TITLE_RE = /^closed$|\bclosed$|cancell?ed|bikini car wash|private party/i;
 
 const TAG_RULES = [
   [/karaoke/i, "Karaoke"],
@@ -244,12 +244,28 @@ async function main() {
     rows.push(...venueRows.slice(0, MAX_PER_VENUE));
   }
 
+  // skip events a previous curation run already inserted (re-crawls re-report them)
+  const keyOf = (r) => `${r.venue_id}|${(r.title || "").toLowerCase()}|${r.event_date || "R"}`;
+  const venueIds = [...new Set(rows.map((r) => r.venue_id))];
+  const existingKeys = new Set();
+  for (let i = 0; i < venueIds.length; i += 50) {
+    const { data: ex, error: exErr } = await supabase
+      .from("events")
+      .select("venue_id, title, event_date")
+      .eq("source", "scraped")
+      .in("venue_id", venueIds.slice(i, i + 50));
+    if (exErr) throw new Error(`existing-events check failed: ${exErr.message}`);
+    for (const e of ex) existingKeys.add(keyOf(e));
+  }
+  const freshRows = rows.filter((r) => !existingKeys.has(keyOf(r)));
+  if (freshRows.length < rows.length) console.log(`Skipping ${rows.length - freshRows.length} events already in the DB.\n`);
+
   const byVenue = new Map();
-  for (const r of rows) {
+  for (const r of freshRows) {
     if (!byVenue.has(r.venueName)) byVenue.set(r.venueName, []);
     byVenue.get(r.venueName).push(r);
   }
-  console.log(`Curated ${rows.length} events across ${byVenue.size} ${CITY} venues (as of ${today})\n`);
+  console.log(`Curated ${freshRows.length} new events across ${byVenue.size} ${CITY} venues (as of ${today})\n`);
   for (const [venue, list] of byVenue) {
     console.log(`## ${venue} (${list.length})`);
     for (const r of list) {
@@ -262,7 +278,7 @@ async function main() {
 
   if (DRY) { console.log("\nDRY RUN — nothing inserted."); return; }
 
-  const clean = rows.map(({ venueName, _sort, _kind, ...r }) => r);
+  const clean = freshRows.map(({ venueName, _sort, _kind, ...r }) => r);
   for (let i = 0; i < clean.length; i += 50) {
     const { error } = await supabase.from("events").insert(clean.slice(i, i + 50));
     if (error) throw new Error(`insert failed at chunk ${i}: ${error.message}`);
