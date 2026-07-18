@@ -46,9 +46,36 @@ router.get("/", async (req, res) => {
   }
 });
 
+// No 0/O/1/I/L — codes get read aloud to bar staff
+const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+function generateCode() {
+  let code = "";
+  for (let i = 0; i < 6; i++) code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
+  return code;
+}
+
+function redemptionReceipt(row, deal) {
+  return {
+    code: row.code,
+    redeemed_at: row.redeemed_at,
+    deal: { id: deal.id, title: deal.title, description: deal.description },
+    venue: { name: deal.venues?.name, city: deal.venues?.city },
+  };
+}
+
+router.get("/my-redemptions", authMiddleware, async (req, res) => {
+  try {
+    const { data, error } = await supabase.from("deal_redemptions").select("deal_id, code, redeemed_at").eq("user_id", req.user.id);
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load redemptions." });
+  }
+});
+
 router.post("/:id/redeem", authMiddleware, async (req, res) => {
   try {
-    const { data: deal } = await supabase.from("deals").select("*, venues(owner_id, city)").eq("id", req.params.id).single();
+    const { data: deal } = await supabase.from("deals").select("*, venues(owner_id, city, name)").eq("id", req.params.id).single();
     if (!deal) return res.status(404).json({ error: "Deal not found." });
     if (!deal.is_active || new Date(deal.expires_at) < new Date()) return res.status(400).json({ error: "This deal has expired." });
     if (!isDealLiveNow(deal)) return res.status(400).json({ error: "This deal isn't active right now — check its schedule." });
@@ -57,15 +84,27 @@ router.post("/:id/redeem", authMiddleware, async (req, res) => {
       const isPremium = user?.is_premium && new Date(user.premium_expires_at) > new Date();
       if (!isPremium) return res.status(403).json({ error: "This deal is for Premium members only.", upgrade_required: true });
     }
-    const { error } = await supabase.from("deal_redemptions").insert({ deal_id: req.params.id, user_id: req.user.id });
-    if (error) {
-      if (error.code === "23505") return res.status(409).json({ error: "You have already redeemed this deal." });
-      throw error;
+    let row = null;
+    for (let attempt = 0; attempt < 3 && !row; attempt++) {
+      const { data, error } = await supabase.from("deal_redemptions")
+        .insert({ deal_id: req.params.id, user_id: req.user.id, code: generateCode() })
+        .select("code, redeemed_at").single();
+      if (error) {
+        if (error.code === "23505" && (error.message || "").includes("deal_redemptions_code_key")) continue;
+        if (error.code === "23505") {
+          const { data: existing } = await supabase.from("deal_redemptions").select("code, redeemed_at").eq("deal_id", req.params.id).eq("user_id", req.user.id).single();
+          return res.status(409).json({ error: "You have already redeemed this deal.", already_redeemed: true, redemption: existing ? redemptionReceipt(existing, deal) : null });
+        }
+        throw error;
+      }
+      row = data;
     }
+    if (!row) throw new Error("could not generate a unique redemption code");
     const { error: countError } = await supabase.rpc("increment_deal_redemptions", { p_deal_id: req.params.id });
     if (countError) throw countError;
-    res.json({ success: true, message: "Deal redeemed! Show this screen at the venue." });
+    res.json({ success: true, redemption: redemptionReceipt(row, deal) });
   } catch (err) {
+    console.error("deal redeem error:", err);
     res.status(500).json({ error: "Failed to redeem deal." });
   }
 });
