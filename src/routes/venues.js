@@ -6,6 +6,7 @@ const rateLimit = require("express-rate-limit");
 const { client: twilioClient, verifyService } = require("../config/twilio");
 const { PLACES_KEY, fetchPlaceDetails, resolvePhotoUri } = require("../config/places");
 const { isDealLiveNow } = require("./deals");
+const { shapeEvent, cityNow, addDays } = require("./events");
 
 const router = express.Router();
 
@@ -487,9 +488,10 @@ router.get("/:id", async (req, res) => {
     const now = new Date();
     const { dayInt, hourIndex } = baselinePosition(venue.city, now);
 
-    const [place, { data: deals }, { data: stories }, { data: typical }, friendsHere] = await Promise.all([
+    const [place, { data: deals }, { data: events }, { data: stories }, { data: typical }, friendsHere] = await Promise.all([
       getPlaceData(venue),
       supabase.from("deals").select("*").eq("venue_id", req.params.id).eq("is_active", true).gt("expires_at", now.toISOString()),
+      supabase.from("events").select("*, event_deals(deals(id, title, detail, description, tags, is_premium_only, is_active, expires_at, recur_days, recur_start, recur_end))").eq("venue_id", req.params.id).eq("is_active", true),
       supabase.from("stories").select("id, caption, emoji, visibility, is_anonymous, like_count, created_at, users!stories_user_id_fkey(username, display_name, avatar_url)").eq("venue_id", req.params.id).eq("visibility", "public").gt("expires_at", now.toISOString()).order("created_at", { ascending: false }).limit(10),
       supabase.from("venue_typical_hours").select("day_int, hour_data").eq("venue_id", req.params.id).eq("day_int", dayInt).maybeSingle(),
       (async () => {
@@ -509,6 +511,14 @@ router.get("/:id", async (req, res) => {
       busy_score: venue.venue_busy_scores?.busy_score ?? 0,
       report_count: venue.venue_busy_scores?.report_count ?? 0,
       deals: (deals || []).map(d => ({ ...d, is_live_now: isDealLiveNow({ ...d, venues: { city: venue.city } }, now) })),
+      events: (events || [])
+        .map(e => {
+          const fromStr = cityNow(venue.city, now).dateStr;
+          return shapeEvent({ ...e, venues: { city: venue.city } }, fromStr, addDays(fromStr, 30), now);
+        })
+        .filter(e => e.occurrences.length > 0)
+        .sort((a, b) => (b.is_now - a.is_now) || a.next_occurrence.localeCompare(b.next_occurrence))
+        .map(e => ({ ...e, venues: undefined })),
       stories: stories || [],
       place: place
         ? {

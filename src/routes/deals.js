@@ -155,3 +155,4 @@ router.post("/", authMiddleware, async (req, res) => {
 
 module.exports = router;
 module.exports.isDealLiveNow = isDealLiveNow;
+module.exports.DEAL_TAGS = DEAL_TAGS;
