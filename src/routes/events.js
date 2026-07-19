@@ -91,7 +91,7 @@ function shapeEvent(e, fromStr, toStr, now = new Date()) {
 }
 
 const EVENT_SELECT = `*, venues(id, name, neighborhood, city, latitude, longitude, category),
-  event_deals(deals(id, title, detail, description, tags, is_premium_only, is_active, expires_at, recur_days, recur_start, recur_end))`;
+  event_deals(deals(id, title, detail, description, tags, is_premium_only, is_active, expires_at, recur_days, recur_start, recur_end, source))`;
 
 router.get("/", async (req, res) => {
   try {
