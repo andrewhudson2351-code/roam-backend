@@ -32,15 +32,25 @@ function isDealLiveNow(deal, now = new Date()) {
 
 router.get("/", async (req, res) => {
   try {
-    const { city = "Charlotte", tag } = req.query;
+    const { city = "Charlotte", tag, day } = req.query;
     if (tag && !DEAL_TAGS.includes(tag)) return res.status(400).json({ error: "Unknown tag." });
-    let query = supabase.from("deals").select(`*, venues(id, name, neighborhood, city, latitude, longitude, category)`).eq("is_active", true).gt("expires_at", new Date().toISOString()).order("save_count", { ascending: false });
+    const now = new Date();
+    let query = supabase.from("deals").select(`*, venues(id, name, neighborhood, city, latitude, longitude, category)`).eq("is_active", true).gt("expires_at", now.toISOString()).order("save_count", { ascending: false });
     if (tag) query = query.contains("tags", [tag]);
     const { data, error } = await query;
     if (error) throw error;
-    const live = data.filter(d => isDealLiveNow(d));
-    const deals = city ? live.filter(d => d.venues?.city === city) : live;
-    res.json(deals);
+    // With ?day=N (0=Sun..6=Sat): every deal that runs that weekday, ignoring
+    // time-of-day so users can browse/plan. Without it: only what's live right now.
+    let filtered;
+    if (day !== undefined && day !== "") {
+      const d = Number(day);
+      if (!Number.isInteger(d) || d < 0 || d > 6) return res.status(400).json({ error: "day must be an integer 0-6." });
+      filtered = data.filter(deal => !deal.recur_days || deal.recur_days.includes(d));
+    } else {
+      filtered = data.filter(deal => isDealLiveNow(deal, now));
+    }
+    const deals = city ? filtered.filter(d => d.venues?.city === city) : filtered;
+    res.json(deals.map(deal => ({ ...deal, is_live_now: isDealLiveNow(deal, now) })));
   } catch (err) {
     res.status(500).json({ error: "Failed to load deals." });
   }
