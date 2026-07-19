@@ -1,6 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const cron = require("node-cron");
 // Config modules — throw at startup if required env vars are missing
@@ -24,7 +25,22 @@ app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 
 app.use('/api/stripe/webhooks', express.raw({ type: 'application/json' }), webhookRoutes);
-app.use(cors({ origin: "*", methods: ["GET", "POST", "PUT", "DELETE", "PATCH"] }));
+// cross-origin resource policy stays open so app.roaman.app can hotlink /photos redirects
+app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
+const ALLOWED_ORIGINS = [
+  "https://app.roaman.app",
+  "https://roaman.app",
+  "https://www.roaman.app",
+  "capacitor://localhost", // iOS Capacitor webview
+  "http://localhost:5173", // Vite dev
+  "http://localhost:4173", // Vite preview
+];
+if (process.env.FRONTEND_URL) ALLOWED_ORIGINS.push(process.env.FRONTEND_URL);
+// Requests without an Origin header (curl, server-to-server, native HTTP) pass through.
+app.use(cors({
+  origin: (origin, cb) => cb(null, !origin || ALLOWED_ORIGINS.includes(origin)),
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+}));
 app.use(express.json({ limit: "10mb" }));
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 500, message: { error: "Too many requests, slow down." } });
 app.use(limiter);

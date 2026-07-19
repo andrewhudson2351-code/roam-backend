@@ -504,10 +504,16 @@ router.get("/:id", async (req, res) => {
       })(),
     ]);
 
+    // Explicit public shape — never spread the venue row here (it carries
+    // owner_id, stripe_customer_id, google_place_id).
+    const { id, name, address, neighborhood, city, category, latitude, longitude,
+      description, phone, website, instagram, is_verified, cover_image_url, plan,
+      heatmap_boost, created_at } = venue;
     res.json({
-      ...venue,
-      stripe_customer_id: undefined,
-      venue_busy_scores: undefined,
+      id, name, address, neighborhood, city, category, latitude, longitude,
+      description, phone, website, instagram, is_verified, cover_image_url, plan,
+      heatmap_boost, created_at,
+      is_claimed: !!venue.owner_id,
       busy_score: venue.venue_busy_scores?.busy_score ?? 0,
       report_count: venue.venue_busy_scores?.report_count ?? 0,
       deals: (deals || []).map(d => ({ ...d, is_live_now: isDealLiveNow({ ...d, venues: { city: venue.city } }, now) })),
