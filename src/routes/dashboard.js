@@ -22,7 +22,7 @@ router.get("/:venueId", authMiddleware, async (req, res) => {
     const { data: venue } = await supabase.from("venues").select("*").eq("id", venueId).single();
     const { data: todayStats } = await supabase.from("venue_analytics").select("*").eq("venue_id", venueId).eq("date", today).single();
     const { data: weeklyStats } = await supabase.from("venue_analytics").select("*").eq("venue_id", venueId).gte("date", sevenDaysAgo).order("date", { ascending: true });
-    const { data: activeDeals } = await supabase.from("deals").select("*").eq("venue_id", venueId).eq("is_active", true).gt("expires_at", new Date().toISOString());
+    const { data: activeDeals } = await supabase.from("deals").select("*").eq("venue_id", venueId).eq("is_active", true).gt("expires_at", new Date().toISOString()).order("created_at", { ascending: true });
     const { data: expiredDeals } = await supabase.from("deals").select("*").eq("venue_id", venueId).lt("expires_at", new Date().toISOString()).order("expires_at", { ascending: false }).limit(5);
     const { data: crowdScore } = await supabase.from("venue_busy_scores").select("*").eq("venue_id", venueId).single();
     res.json({
