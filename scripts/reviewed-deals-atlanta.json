@@ -1,0 +1,6 @@
+[
+  { "venueName": "Loews Atlanta Hotel", "title": "Sushi Flights + Sake Night: $32 Flights", "detail": "Every Thursday from 4 PM at Ashland — chef's sushi flights with sake pairings.", "tags": ["Apps/Small Plates"], "recur_days": [4], "recur_start": "16:00", "recur_end": "18:00" },
+  { "venueName": "The Steamhouse Lounge", "title": "Monday: $20 Snow Crab + $6 Goombay Smash", "detail": "Monday daily specials: $20 1-lb snow crab and $6 Goombay Smash.", "tags": ["Apps/Small Plates", "Cocktails"], "recur_days": [1], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "The Steamhouse Lounge", "title": "Tuesday: $6.50 Campo Bravo Margaritas", "detail": "Tuesday daily special.", "tags": ["Cocktails"], "recur_days": [2], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "The Steamhouse Lounge", "title": "Wednesday: $15 Dozen Raw Oysters", "detail": "Wednesday daily special.", "tags": ["Apps/Small Plates"], "recur_days": [3], "recur_start": "00:00", "recur_end": "23:59" }
+]

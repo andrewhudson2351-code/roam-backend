@@ -1,0 +1,12 @@
+[
+  { "venueName": "Hoy Como Ayer", "title": "Ladies Night: $1 Cocktails", "detail": "Fridays 8–10 PM: $1 cocktails for ladies.", "tags": ["Ladies Night", "Cocktails"], "recur_days": [5], "recur_start": "20:00", "recur_end": "22:00" },
+  { "venueName": "A Fish Called Avalon", "title": "Happy Hour: $7 Beer, $12 Cocktails", "detail": "Daily happy hour, 3–7 PM.", "tags": ["Happy Hour", "Cocktails"], "recur_days": [0, 1, 2, 3, 4, 5, 6], "recur_start": "15:00", "recur_end": "19:00" },
+  { "venueName": "Bar Gaythering", "title": "Sunday Happy Hour", "detail": "Every Sunday, 2–6 PM.", "tags": ["Happy Hour"], "recur_days": [0], "recur_start": "14:00", "recur_end": "18:00" },
+  { "venueName": "Bella Cuba Restaurant", "title": "Happy Hour", "detail": "Monday–Friday, 4–7 PM.", "tags": ["Happy Hour"], "recur_days": [1, 2, 3, 4, 5], "recur_start": "16:00", "recur_end": "19:00" },
+  { "venueName": "Fleming’s Prime Steakhouse & Wine Bar", "title": "Wine Not Wednesday: Half-Priced Select Bottles", "detail": "Half-priced select bottles of wine every Wednesday.", "tags": ["Wine"], "recur_days": [3], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "Twist", "title": "2-4-1 Everything", "detail": "Two-for-one on everything, every day 3–9 PM.", "tags": ["Happy Hour", "Cocktails"], "recur_days": [0, 1, 2, 3, 4, 5, 6], "recur_start": "15:00", "recur_end": "21:00" },
+  { "venueName": "Barsecco", "title": "Happy Hour", "detail": "Daily, 4–8 PM.", "tags": ["Happy Hour"], "recur_days": [0, 1, 2, 3, 4, 5, 6], "recur_start": "16:00", "recur_end": "20:00" },
+  { "venueName": "Bulla Gastrobar Coral Gables", "title": "Daily Happy Hour", "detail": "Daily happy hour from 5 PM.", "tags": ["Happy Hour"], "recur_days": [0, 1, 2, 3, 4, 5, 6], "recur_start": "17:00", "recur_end": "19:00" },
+  { "venueName": "Mac's Club Deuce ♣️", "title": "2-4-1 Happy Hour", "detail": "Miami's oldest bar (est. 1926): two-for-one happy hour 8 AM–5 PM daily.", "tags": ["Happy Hour"], "recur_days": [0, 1, 2, 3, 4, 5, 6], "recur_start": "08:00", "recur_end": "17:00" },
+  { "venueName": "Oh! Mexico", "title": "Taco Tuesday: $4 Tacos", "detail": "Every Tuesday 3–7 PM: $4 tacos and special drink deals.", "tags": ["Tacos"], "recur_days": [2], "recur_start": "15:00", "recur_end": "19:00" }
+]

@@ -1,0 +1,4 @@
+[
+  { "venueName": "Dave & Buster's New York City - Times Square", "title": "Half-Price Games", "detail": "Half price games every Sunday and Wednesday. Valid in-store only.", "tags": ["Sports"], "recur_days": [0, 3], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "Dave & Buster's New York City - Times Square", "title": "$1 Wings", "detail": "$1 wings every Monday and Thursday.", "tags": ["Wings"], "recur_days": [1, 4], "recur_start": "00:00", "recur_end": "23:59" }
+]

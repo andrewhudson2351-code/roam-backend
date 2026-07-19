@@ -1,0 +1,50 @@
+[
+  { "venueName": "Two Buck Saloon", "title": "$4 Bloody Marys & Mimosas", "detail": "Every Sunday — real daily deals, no fine print.", "tags": ["Brunch", "Cocktails"], "recur_days": [0], "recur_start": "00:00", "recur_end": "23:59" },
+
+  { "venueName": "DTR Dilworth", "title": "Half-Price Rosé Bottles", "detail": "Pretty in Pink — Uncorked Thursdays: select bottles of rosé half price, all day.", "tags": ["Wine"], "recur_days": [4], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "DTR Dilworth", "title": "$25 Blind Wine Tasting", "detail": "Blind Tasting Tuesdays: three mystery pours for $25.", "tags": ["Wine"], "recur_days": [2], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "DTR Plaza Midwood", "title": "Tini Social Club: 3 Mini Martinis + Truffle Fries $25", "detail": "Every Wednesday at DTR Plaza Midwood.", "tags": ["Cocktails"], "recur_days": [3], "recur_start": "00:00", "recur_end": "23:59" },
+
+  { "venueName": "Bowlero Charlotte", "title": "Half-Price Arcade Play", "detail": "Every Wednesday, open to close. Walk-in only; subject to availability.", "tags": ["Sports"], "recur_days": [3], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "Bowlero South Boulevard", "title": "Half-Price Arcade Play", "detail": "Every Wednesday, open to close. Walk-in only; subject to availability.", "tags": ["Sports"], "recur_days": [3], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "Lucky Strike South Charlotte", "title": "Half-Price Arcade Play", "detail": "Every Wednesday, open to close. Walk-in only; subject to availability.", "tags": ["Sports"], "recur_days": [3], "recur_start": "00:00", "recur_end": "23:59" },
+
+  { "venueName": "Sullivan's Steakhouse", "title": "$99 Chef Selections for Two", "detail": "Tuesdays: limited-run chef selection dinner for $99.", "tags": ["Apps/Small Plates"], "recur_days": [2], "recur_start": "00:00", "recur_end": "23:59" },
+
+  { "venueName": "Dogwood Southern Table & Bar", "title": "Daily Happy Hour + $2 Smoked Wings", "detail": "Daily happy hour 4:00–5:30 PM with $2 smoked wings at the bar.", "tags": ["Happy Hour", "Wings"], "recur_days": [0, 1, 2, 3, 4, 5, 6], "recur_start": "16:00", "recur_end": "17:30" },
+
+  { "venueName": "Bruno", "title": "$10 Specialty Cocktails", "detail": "Bruno Special — Wednesdays: $10 specialty cocktails.", "tags": ["Cocktails"], "recur_days": [3], "recur_start": "00:00", "recur_end": "23:59" },
+
+  { "venueName": "The Wine Loft", "title": "$10 Selected Wines", "detail": "Midweek Break Wednesdays: $10 selected wines — bold reds, bright whites, sparkling rosé.", "tags": ["Wine"], "recur_days": [3], "recur_start": "00:00", "recur_end": "23:59" },
+
+  { "venueName": "Cheat's Cheesesteaks", "title": "Half-Price Large Chicken Cheesesteaks", "detail": "Making Mondays Better: half price large chicken cheesesteaks every Monday.", "tags": ["Apps/Small Plates"], "recur_days": [1], "recur_start": "00:00", "recur_end": "23:59" },
+
+  { "venueName": "McKoy's Smokehouse and Saloon", "title": "Monday July Specials: $2.25 Outlaw Light, $5 Bloody Marys", "detail": "Every Monday in July: $2.25 Outlaw Light, $3.50 mimosas, $5 bloody marys, $8.25 Lemon Razz martini (12–7 PM).", "tags": ["Beer", "Cocktails"], "recur_days": [1], "recur_start": "12:00", "recur_end": "19:00", "expires_at": "2026-08-01T00:00:00Z" },
+  { "venueName": "McKoy's Smokehouse and Saloon", "title": "$1 Off NC Drafts", "detail": "Every Tuesday: $1 off North Carolina draft beers.", "tags": ["Beer"], "recur_days": [2], "recur_start": "11:00", "recur_end": "22:00" },
+  { "venueName": "McKoy's Smokehouse and Saloon", "title": "$8 Cranberry Margaritas", "detail": "Every Thursday in July: $8 cranberry margaritas.", "tags": ["Cocktails"], "recur_days": [4], "recur_start": "11:00", "recur_end": "22:00", "expires_at": "2026-08-01T00:00:00Z" },
+
+  { "venueName": "Melting Pot", "title": "Happy Hour", "detail": "Monday–Thursday happy hour, 4:30–6:00 PM.", "tags": ["Happy Hour"], "recur_days": [1, 2, 3, 4], "recur_start": "16:30", "recur_end": "18:00" },
+
+  { "venueName": "Sabor Latin Street Grill", "title": "$6 Margaritas", "detail": "Every Saturday: handcrafted margaritas for $6.", "tags": ["Cocktails"], "recur_days": [6], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "Sabor Latin Street Grill", "title": "$3 Empanadas", "detail": "Every Thursday: $3 empanadas.", "tags": ["Apps/Small Plates"], "recur_days": [4], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "Sabor Latin Street Grill", "title": "$5 Craft Beer", "detail": "Every Friday: $5 craft beer.", "tags": ["Beer"], "recur_days": [5], "recur_start": "00:00", "recur_end": "23:59" },
+
+  { "venueName": "Que Onda Tacos + Tequila Uptown", "title": "$2.50 Street Tacos", "detail": "Taco Tuesday: $2.50 street tacos. Dine in only, no modifications.", "tags": ["Tacos"], "recur_days": [2], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "Que Onda Tacos + Tequila Uptown", "title": "Half Off Tequilas & Mezcals + $5 Small Nachos", "detail": "Wednesdays: half off all tequilas and mezcals, $5 small nachos. Dine in only.", "tags": ["Cocktails", "Tacos"], "recur_days": [3], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "Que Onda Tacos + Tequila Uptown", "title": "$2 Off Margaritas, $3 Off Fajitas", "detail": "Thursdays: $2 off margaritas and $3 off all fajitas. Dine in only.", "tags": ["Cocktails"], "recur_days": [4], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "Que Onda Tacos + Tequila Uptown", "title": "$6 Large Gold Margaritas", "detail": "Fridays: $6 large gold margaritas. Dine in only.", "tags": ["Cocktails"], "recur_days": [5], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "Que Onda - Plaza Midwood", "title": "$2.50 Street Tacos", "detail": "Taco Tuesday: $2.50 street tacos. Dine in only, no modifications.", "tags": ["Tacos"], "recur_days": [2], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "Que Onda - Plaza Midwood", "title": "Half Off Tequilas & Mezcals + $5 Small Nachos", "detail": "Wednesdays: half off all tequilas and mezcals, $5 small nachos. Dine in only.", "tags": ["Cocktails", "Tacos"], "recur_days": [3], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "Que Onda - Plaza Midwood", "title": "$2 Off Margaritas, $3 Off Fajitas", "detail": "Thursdays: $2 off margaritas and $3 off all fajitas. Dine in only.", "tags": ["Cocktails"], "recur_days": [4], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "Que Onda - Plaza Midwood", "title": "$6 Large Gold Margaritas", "detail": "Fridays: $6 large gold margaritas. Dine in only.", "tags": ["Cocktails"], "recur_days": [5], "recur_start": "00:00", "recur_end": "23:59" },
+
+  { "venueName": "Rosemont", "title": "Half-Price Wine Bottles", "detail": "Half-price bottles of wine every Wednesday.", "tags": ["Wine"], "recur_days": [3], "recur_start": "00:00", "recur_end": "23:59" },
+
+  { "venueName": "Whiskey Warehouse", "title": "$5 Jack Daniel's Pours", "detail": "Whiskey (Ware)House Parties — Saturdays from 8 PM: $5 Jack poured in Plaza spirited fashion.", "tags": ["Shots"], "recur_days": [6], "recur_start": "20:00", "recur_end": "23:59" },
+
+  { "venueName": "Sir Edmond Halley's", "title": "Half-Price Wine Bottles", "detail": "All wine bottles half price every Wednesday and Sunday.", "tags": ["Wine"], "recur_days": [0, 3], "recur_start": "00:00", "recur_end": "23:59" },
+
+  { "venueName": "Soul Gastrolounge", "title": "Half-Price Crushable Wines", "detail": "Every Wednesday: half price (bottle or glass) on crushable wines made for sharing.", "tags": ["Wine"], "recur_days": [3], "recur_start": "00:00", "recur_end": "23:59" },
+
+  { "venueName": "Ink N Ivy", "title": "$3 Tacos", "detail": "Every Tuesday: $3 tacos (minimum order may apply).", "tags": ["Tacos"], "recur_days": [2], "recur_start": "00:00", "recur_end": "23:59" }
+]

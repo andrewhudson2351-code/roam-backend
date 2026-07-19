@@ -77,6 +77,7 @@ router.post("/:id/redeem", authMiddleware, async (req, res) => {
   try {
     const { data: deal } = await supabase.from("deals").select("*, venues(owner_id, city, name)").eq("id", req.params.id).single();
     if (!deal) return res.status(404).json({ error: "Deal not found." });
+    if (deal.source === "scraped") return res.status(403).json({ error: "This deal hasn't been verified by the venue yet, so it can't be redeemed in-app. Mention it at the bar!" });
     if (!deal.is_active || new Date(deal.expires_at) < new Date()) return res.status(400).json({ error: "This deal has expired." });
     if (!isDealLiveNow(deal)) return res.status(400).json({ error: "This deal isn't active right now — check its schedule." });
     if (deal.is_premium_only) {

@@ -1,0 +1,7 @@
+[
+  { "venueName": "Legal Sea Foods - Harborside", "title": "Happy Hour: $1 Oysters", "detail": "Happy hour at Legal, 3–6 PM — $1 oysters.", "tags": ["Happy Hour"], "recur_days": [0, 1, 2, 3, 4, 5, 6], "recur_start": "15:00", "recur_end": "18:00" },
+  { "venueName": "Legal Sea Foods - Long Wharf", "title": "Happy Hour: $1 Oysters", "detail": "Happy hour at Legal, 3–6 PM — $1 oysters.", "tags": ["Happy Hour"], "recur_days": [0, 1, 2, 3, 4, 5, 6], "recur_start": "15:00", "recur_end": "18:00" },
+  { "venueName": "Legal Sea Foods - Park Square", "title": "Happy Hour: $1 Oysters", "detail": "Happy hour at Legal, 3–6 PM — $1 oysters.", "tags": ["Happy Hour"], "recur_days": [0, 1, 2, 3, 4, 5, 6], "recur_start": "15:00", "recur_end": "18:00" },
+  { "venueName": "The Q", "title": "Bar Happy Hour", "detail": "Daily bar happy hour, 2–6 PM.", "tags": ["Happy Hour"], "recur_days": [0, 1, 2, 3, 4, 5, 6], "recur_start": "14:00", "recur_end": "18:00" },
+  { "venueName": "Habibi's Lounge", "title": "Happy Hour", "detail": "Every day, 2–6 PM.", "tags": ["Happy Hour"], "recur_days": [0, 1, 2, 3, 4, 5, 6], "recur_start": "14:00", "recur_end": "18:00" }
+]

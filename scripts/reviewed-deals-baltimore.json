@@ -1,0 +1,10 @@
+[
+  { "venueName": "Leinie Lodge & Beer Garden", "title": "Happy Hour", "detail": "Every Wednesday, Thursday and Friday, 4–7 PM.", "tags": ["Happy Hour", "Beer"], "recur_days": [3, 4, 5], "recur_start": "16:00", "recur_end": "19:00" },
+  { "venueName": "Cinghiale", "title": "Cellar Raid Tuesdays: 50% Off Wine Bottles", "detail": "Every Tuesday in the enoteca: half off bottles of wine.", "tags": ["Wine"], "recur_days": [2], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "Leon's Backroom Bar", "title": "BOGO Happy Hour", "detail": "Daily 4–9 PM: buy one get one on select domestic beers and select liquor.", "tags": ["Happy Hour", "Beer"], "recur_days": [0, 1, 2, 3, 4, 5, 6], "recur_start": "16:00", "recur_end": "21:00" },
+  { "venueName": "Leon's Backroom Bar", "title": "Saturday $1 Shots", "detail": "Shot specials for $1, Saturdays before 7 PM.", "tags": ["Shots"], "recur_days": [6], "recur_start": "16:00", "recur_end": "19:00" },
+  { "venueName": "Mama's on the Half Shell", "title": "Happy Hour", "detail": "Monday–Friday, 3–6 PM.", "tags": ["Happy Hour"], "recur_days": [1, 2, 3, 4, 5], "recur_start": "15:00", "recur_end": "18:00" },
+  { "venueName": "Phillips Seafood", "title": "$5 Drinks Happy Hour", "detail": "Weekdays 3–6 PM: $5 drinks.", "tags": ["Happy Hour"], "recur_days": [1, 2, 3, 4, 5], "recur_start": "15:00", "recur_end": "18:00" },
+  { "venueName": "The Garden Rooftop", "title": "Thursday Happy Hour", "detail": "Every Thursday, 4–8 PM — drink specials after work.", "tags": ["Happy Hour"], "recur_days": [4], "recur_start": "16:00", "recur_end": "20:00" },
+  { "venueName": "Nepenthe Brewing Co.", "title": "Tuesday All-Night Happy Hour + Free Darts", "detail": "All-night happy hour plus open darts free play, every Tuesday.", "tags": ["Happy Hour"], "recur_days": [2], "recur_start": "00:00", "recur_end": "23:59" }
+]

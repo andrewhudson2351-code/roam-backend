@@ -1,0 +1,14 @@
+[
+  { "venueName": "Dave & Buster's Philadelphia", "title": "Half-Price Games", "detail": "Half price games every Sunday and Wednesday. Valid in-store only.", "tags": ["Sports"], "recur_days": [0, 3], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "Dave & Buster's Philadelphia", "title": "$1 Wings", "detail": "$1 wings every Monday and Thursday.", "tags": ["Wings"], "recur_days": [1, 4], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "Pyramid Club", "title": "Buck-a-Shuck: $1 Oysters", "detail": "Buck-a-Shuck Mondays: $1 oysters during lunch service, from 11 AM.", "tags": ["Apps/Small Plates"], "recur_days": [1], "recur_start": "11:00", "recur_end": "15:00" },
+  { "venueName": "Cavanaugh's River Deck", "title": "$5 Dolla' Fridays", "detail": "$5 cover, $5 Ultras, $5 wines, $6 Surfsides, half-price deck starters, rotating DJs.", "tags": ["Wine", "Beer"], "recur_days": [5], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "Spasso Italian Grill", "title": "Happy Hour", "detail": "Tuesday–Friday happy hour, 5–7 PM — $8 meatballs with marinara and drink specials.", "tags": ["Happy Hour"], "recur_days": [2, 3, 4, 5], "recur_start": "17:00", "recur_end": "19:00" },
+  { "venueName": "Prohibition Taproom", "title": "Happy Hour", "detail": "Monday–Thursday, 4–6 PM.", "tags": ["Happy Hour"], "recur_days": [1, 2, 3, 4], "recur_start": "16:00", "recur_end": "18:00" },
+  { "venueName": "Prohibition Taproom", "title": "Friday Happy Hour", "detail": "Fridays 3–6 PM.", "tags": ["Happy Hour"], "recur_days": [5], "recur_start": "15:00", "recur_end": "18:00" },
+  { "venueName": "White Dog Cafe University City", "title": "Wine Not Monday: Half-Priced Wine Bottles", "detail": "Half-priced bottles of wine with the purchase of an entree, every Monday.", "tags": ["Wine"], "recur_days": [1], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "Cuba Libre Restaurant & Rum Bar", "title": "$30 All-You-Can-Eat Pork Feast", "detail": "Feast with a Mission Mondays: all-you-can-eat pork feast, 10% donated.", "tags": ["Apps/Small Plates"], "recur_days": [1], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "SPIN Philadelphia", "title": "$9 After 9", "detail": "Every Tuesday night: $9 ping pong after 9 PM.", "tags": ["Sports"], "recur_days": [2], "recur_start": "21:00", "recur_end": "23:59" },
+  { "venueName": "South Philadelphia Tap Room", "title": "Happy Hour: $1 Off Drafts", "detail": "Monday–Friday, 4–6 PM.", "tags": ["Happy Hour", "Beer"], "recur_days": [1, 2, 3, 4, 5], "recur_start": "16:00", "recur_end": "18:00" },
+  { "venueName": "The Trestle Inn", "title": "Friday Dance Party: $5 Love City Lager", "detail": "Classic disco and soulful house dance party every Friday from 10 PM — $5 Love City Lager.", "tags": ["Beer"], "recur_days": [5], "recur_start": "22:00", "recur_end": "02:00" }
+]

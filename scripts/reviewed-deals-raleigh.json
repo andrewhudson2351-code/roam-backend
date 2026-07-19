@@ -1,0 +1,14 @@
+[
+  { "venueName": "The Longleaf Hotel and Lounge", "title": "Thursday Uncorked: Half-Priced Wine Bottles", "detail": "Every Thursday, 4–10 PM.", "tags": ["Wine"], "recur_days": [4], "recur_start": "16:00", "recur_end": "22:00" },
+  { "venueName": "The Big Easy NC", "title": "$7 Margarita Mondays", "detail": "Strawberry, pomegranate, classic lime or grapefruit.", "tags": ["Cocktails"], "recur_days": [1], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "The Big Easy NC", "title": "Fat Tuesday: $7 Hurricanes, $4 Abita Beers", "detail": "Every Tuesday is Fat Tuesday.", "tags": ["Cocktails", "Beer"], "recur_days": [2], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "The Big Easy NC", "title": "Thursday: Half-Price Wine Glasses, $5 Cosmos & Martinis", "detail": "Half-priced wine by the glass plus $5 house cosmos and martinis.", "tags": ["Wine", "Cocktails"], "recur_days": [4], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "Sullivan's Steakhouse", "title": "$99 Chef Selections for Two", "detail": "Tuesdays and Thursdays: five-course chef selection dinner for $99.", "tags": ["Apps/Small Plates"], "recur_days": [2, 4], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "Gravy", "title": "Half-Price Spaghetti & Meatballs", "detail": "Every Sunday.", "tags": ["Apps/Small Plates"], "recur_days": [0], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "The Willard Rooftop Lounge", "title": "Throwback Thursdays: $12 Classic Cocktails", "detail": "Every Thursday, classic cocktails $12 all day.", "tags": ["Cocktails"], "recur_days": [4], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "Flying Saucer Draught Emporium", "title": "$5 Local Beers", "detail": "Every Sunday: $5 local beers.", "tags": ["Beer"], "recur_days": [0], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "Sono Sushi", "title": "Half Off Small Plates (Bar Lounge)", "detail": "Daily 5–7 PM in the bar lounge.", "tags": ["Apps/Small Plates"], "recur_days": [0, 1, 2, 3, 4, 5, 6], "recur_start": "17:00", "recur_end": "19:00" },
+  { "venueName": "Sono Sushi", "title": "BOGO Hot Sake Mondays", "detail": "Buy one get one hot sake every Monday.", "tags": ["Wine"], "recur_days": [1], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "Sono Sushi", "title": "50% Off Sake Bottles", "detail": "Every Wednesday: half off all bottles of sake.", "tags": ["Wine"], "recur_days": [3], "recur_start": "00:00", "recur_end": "23:59" },
+  { "venueName": "Sono Sushi", "title": "Half-Price Cocktails Thursdays", "detail": "Every Thursday.", "tags": ["Cocktails"], "recur_days": [4], "recur_start": "00:00", "recur_end": "23:59" }
+]
