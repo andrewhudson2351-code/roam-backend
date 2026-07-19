@@ -20,7 +20,9 @@ const CONCURRENCY = 8;
 
 const UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
 // instagram.com path segments that are never profile handles
-const NON_PROFILES = new Set(["p", "reel", "reels", "tv", "explore", "stories", "accounts", "share", "sharer", "hashtag", "invites", "about", "legal", "directory", "web", "developer"]);
+const NON_PROFILES = new Set(["p", "reel", "reels", "tv", "explore", "stories", "accounts", "share", "sharer", "hashtag", "invites", "about", "legal", "directory", "web", "developer",
+  // platform/aggregator accounts that show up in site-builder footers, not the venue's own IG
+  "squarespace", "wix", "godaddy", "wordpress", "shopify", "weebly", "squareup", "toasttab", "opentable", "yelp", "facebook", "google", "linktree", "spothopperapp", "popmenu", "getbento", "bentobox", "singleplatform", "untappd", "doordash", "ubereats", "grubhub", "instagram", "meta", "o1"]);
 
 class FatalError extends Error {}
 
