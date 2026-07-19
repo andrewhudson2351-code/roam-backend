@@ -127,6 +127,40 @@ router.post("/:id/save", authMiddleware, async (req, res) => {
   }
 });
 
+// Scraped deals belong to the venue, so once its owner claims the venue they
+// can adopt one (it becomes redeemable like an owner deal) or dismiss it.
+async function getScrapedDealForOwner(req, res) {
+  const { data: deal } = await supabase.from("deals").select("id, source, venues(owner_id)").eq("id", req.params.id).single();
+  if (!deal) { res.status(404).json({ error: "Deal not found." }); return null; }
+  if (!deal.venues || deal.venues.owner_id !== req.user.id) { res.status(403).json({ error: "You don't own this venue." }); return null; }
+  if (deal.source !== "scraped") { res.status(400).json({ error: "Only unverified deals can be adopted or dismissed." }); return null; }
+  return deal;
+}
+
+router.post("/:id/adopt", authMiddleware, async (req, res) => {
+  try {
+    if (!await getScrapedDealForOwner(req, res)) return;
+    const { data, error } = await supabase.from("deals").update({ source: "owner" }).eq("id", req.params.id).select().single();
+    if (error) throw error;
+    res.json({ success: true, deal: data });
+  } catch (err) {
+    console.error("deal adopt error:", err);
+    res.status(500).json({ error: "Failed to verify deal." });
+  }
+});
+
+router.post("/:id/dismiss", authMiddleware, async (req, res) => {
+  try {
+    if (!await getScrapedDealForOwner(req, res)) return;
+    const { error } = await supabase.from("deals").update({ is_active: false }).eq("id", req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    console.error("deal dismiss error:", err);
+    res.status(500).json({ error: "Failed to remove deal." });
+  }
+});
+
 router.post("/", authMiddleware, async (req, res) => {
   try {
     const { venue_id, title, description, detail, is_premium_only, expires_at, tags, recur_days, recur_start, recur_end } = req.body;
