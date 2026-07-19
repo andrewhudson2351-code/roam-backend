@@ -101,15 +101,18 @@ router.delete("/:id", authMiddleware, async (req, res) => {
 
 router.patch("/location", authMiddleware, async (req, res) => {
   try {
-    const { venue_id, latitude, longitude, last_seen } = req.body;
-    if (!venue_id) return res.status(400).json({ error: "venue_id is required." });
+    // venue_id is optional: a live-GPS update (from the map) has no venue,
+    // a crowd-report check-in supplies one. Coordinates are always required.
+    const { venue_id = null, latitude, longitude, last_seen } = req.body;
     const lat = Number(latitude);
     const lng = Number(longitude);
     if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
       return res.status(400).json({ error: "latitude and longitude must be valid coordinates." });
     }
-    const { data: venue } = await supabase.from("venues").select("id").eq("id", venue_id).single();
-    if (!venue) return res.status(400).json({ error: "Venue not found." });
+    if (venue_id) {
+      const { data: venue } = await supabase.from("venues").select("id").eq("id", venue_id).single();
+      if (!venue) return res.status(400).json({ error: "Venue not found." });
+    }
     const { data: user } = await supabase.from("users").select("location_sharing").eq("id", req.user.id).single();
     if (!user?.location_sharing) return res.status(403).json({ error: "Enable location sharing in your profile settings first." });
     const { error } = await supabase.from("friend_locations").upsert({ user_id: req.user.id, venue_id, latitude: lat, longitude: lng, last_seen, updated_at: new Date().toISOString() });
