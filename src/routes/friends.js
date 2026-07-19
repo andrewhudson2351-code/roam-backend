@@ -37,6 +37,27 @@ router.get("/requests", authMiddleware, async (req, res) => {
   }
 });
 
+// GET /api/friends/search?q= — typeahead for the add-friend input
+router.get("/search", authMiddleware, async (req, res) => {
+  try {
+    // strip anything that could break the PostgREST or() filter or act as an ilike wildcard
+    const q = (req.query.q || "").trim().replace(/[^a-zA-Z0-9_.\- ]/g, "");
+    if (q.length < 2) return res.json([]);
+    const { data, error } = await supabase
+      .from("users")
+      .select("id, username, display_name, avatar_url")
+      .or(`username.ilike.%${q}%,display_name.ilike.%${q}%`)
+      .neq("id", req.user.id)
+      .order("username")
+      .limit(8);
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    console.error("friend search error:", err);
+    res.status(500).json({ error: "Failed to search users." });
+  }
+});
+
 router.post("/request", authMiddleware, async (req, res) => {
   try {
     const { username } = req.body;
