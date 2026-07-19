@@ -1,8 +1,32 @@
 const express = require("express");
+const crypto = require("crypto");
 const { supabase } = require("../config/supabase");
 const authMiddleware = require("../middleware/auth");
 
 const router = express.Router();
+
+// POST /api/stories/upload — base64 image in, public storage URL out.
+// Client compresses to ~1280px JPEG before sending; hard cap 5 MB decoded.
+router.post("/upload", authMiddleware, async (req, res) => {
+  try {
+    const { image } = req.body;
+    if (typeof image !== "string") return res.status(400).json({ error: "image is required." });
+    const match = image.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+    if (!match) return res.status(400).json({ error: "image must be a base64 JPEG, PNG, or WebP data URL." });
+    const contentType = match[1];
+    const buffer = Buffer.from(match[2], "base64");
+    if (buffer.length > 5 * 1024 * 1024) return res.status(413).json({ error: "Image too large (5 MB max)." });
+    const ext = contentType === "image/jpeg" ? "jpg" : contentType.split("/")[1];
+    const path = `${req.user.id}/${crypto.randomUUID()}.${ext}`;
+    const { error } = await supabase.storage.from("stories").upload(path, buffer, { contentType });
+    if (error) throw error;
+    const { data: pub } = supabase.storage.from("stories").getPublicUrl(path);
+    res.json({ media_url: pub.publicUrl });
+  } catch (err) {
+    console.error("story upload error:", err);
+    res.status(500).json({ error: "Failed to upload photo." });
+  }
+});
 
 router.get("/", authMiddleware, async (req, res) => {
   try {
