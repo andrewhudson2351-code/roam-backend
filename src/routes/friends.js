@@ -1,6 +1,7 @@
 const express = require("express");
 const { supabase } = require("../config/supabase");
 const authMiddleware = require("../middleware/auth");
+const { notifyUser } = require("../notify");
 
 const router = express.Router();
 
@@ -70,6 +71,7 @@ router.post("/request", authMiddleware, async (req, res) => {
       if (error.code === "23505") return res.status(409).json({ error: "Friend request already sent." });
       throw error;
     }
+    notifyUser(target.id, { title: "New friend request", body: `@${req.user.username} wants to be your friend on Roaman`, data: { type: "friend_request" } });
     res.json({ success: true });
   } catch (err) {
     console.error("friend request error:", err);
@@ -81,6 +83,7 @@ router.patch("/:id/accept", authMiddleware, async (req, res) => {
   try {
     const { data, error } = await supabase.from("friendships").update({ status: "accepted" }).eq("id", req.params.id).eq("addressee_id", req.user.id).select().single();
     if (error || !data) return res.status(404).json({ error: "Request not found." });
+    notifyUser(data.requester_id, { title: "Friend request accepted", body: `@${req.user.username} accepted your friend request`, data: { type: "friend_accept" } });
     res.json({ success: true });
   } catch (err) {
     console.error("friend accept error:", err);
@@ -109,19 +112,38 @@ router.patch("/location", authMiddleware, async (req, res) => {
     if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
       return res.status(400).json({ error: "latitude and longitude must be valid coordinates." });
     }
+    let venue = null;
     if (venue_id) {
-      const { data: venue } = await supabase.from("venues").select("id").eq("id", venue_id).single();
-      if (!venue) return res.status(400).json({ error: "Venue not found." });
+      const { data: v } = await supabase.from("venues").select("id, name").eq("id", venue_id).single();
+      if (!v) return res.status(400).json({ error: "Venue not found." });
+      venue = v;
     }
     const { data: user } = await supabase.from("users").select("location_sharing").eq("id", req.user.id).single();
     if (!user?.location_sharing) return res.status(403).json({ error: "Enable location sharing in your profile settings first." });
+    // Detect a NEW check-in (venue changed) before we overwrite the row, so we
+    // notify friends once per arrival rather than on every crowd re-report.
+    const { data: prev } = await supabase.from("friend_locations").select("venue_id").eq("user_id", req.user.id).maybeSingle();
+    const isNewCheckIn = venue && prev?.venue_id !== venue_id;
     const { error } = await supabase.from("friend_locations").upsert({ user_id: req.user.id, venue_id, latitude: lat, longitude: lng, last_seen, updated_at: new Date().toISOString() });
     if (error) throw error;
     res.json({ success: true });
+    if (isNewCheckIn) notifyFriendsOfCheckIn(req.user, venue).catch(() => {});
   } catch (err) {
     console.error("friend location error:", err);
     res.status(500).json({ error: "Failed to update location." });
   }
 });
+
+// Tell a user's accepted friends (who also share location) that they've arrived.
+async function notifyFriendsOfCheckIn(user, venue) {
+  const { data: fr } = await supabase.from("friendships")
+    .select("requester_id, addressee_id")
+    .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`)
+    .eq("status", "accepted");
+  const friendIds = (fr || []).map(f => f.requester_id === user.id ? f.addressee_id : f.requester_id);
+  for (const fid of friendIds) {
+    notifyUser(fid, { title: `@${user.username} is out`, body: `Just checked in at ${venue.name}`, data: { type: "checkin", venue_id: venue.id } });
+  }
+}
 
 module.exports = router;
