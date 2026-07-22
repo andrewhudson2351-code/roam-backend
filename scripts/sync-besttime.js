@@ -17,6 +17,8 @@ const MATCH_RADIUS_M = 200;
 
 const limitArg = process.argv.indexOf("--limit");
 const LIMIT = limitArg !== -1 ? Number(process.argv[limitArg + 1]) : Infinity;
+const skipArg = process.argv.indexOf("--skip-fresh-days");
+const SKIP_FRESH_DAYS = skipArg !== -1 ? Number(process.argv[skipArg + 1]) : 0;
 
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -91,7 +93,17 @@ async function main() {
   const PUBLIC_KEY = keyInfo.api_key_public;
   if (!PUBLIC_KEY) throw new FatalError("Could not resolve public key from private key");
 
-  const stored = await btFetch(`https://besttime.app/api/v1/venues?api_key_private=${PRIVATE_KEY}`, "venue list");
+  // The venue list is paginated (1000/page); loop until an empty page.
+  const stored = [];
+  for (let page = 0; ; page++) {
+    const batch = await btFetch(
+      `https://besttime.app/api/v1/venues?api_key_private=${PRIVATE_KEY}&page=${page}`,
+      `venue list page ${page}`
+    );
+    if (!Array.isArray(batch) || batch.length === 0) break;
+    stored.push(...batch);
+    if (batch.length < 1000) break;
+  }
   const forecasted = stored.filter((v) => v.venue_forecasted === true);
   console.log(`BestTime stored venues: ${stored.length} total, ${forecasted.length} forecasted`);
 
@@ -135,7 +147,26 @@ async function main() {
   }
   console.log(`Matched: ${matches.length} | Unmatched (in BestTime, not in our DB): ${unmatched.length}`);
 
-  const toSync = matches.slice(0, LIMIT);
+  // Optionally skip venues whose baseline was fetched recently (saves query credits on re-runs).
+  let candidates = matches;
+  if (SKIP_FRESH_DAYS > 0) {
+    const cutoff = new Date(Date.now() - SKIP_FRESH_DAYS * 86400000).toISOString();
+    const fresh = new Set();
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase
+        .from("venue_typical_hours")
+        .select("venue_id")
+        .gte("fetched_at", cutoff)
+        .range(from, from + 999);
+      if (error) throw new FatalError(`freshness query failed: ${error.message}`);
+      data.forEach((r) => fresh.add(r.venue_id));
+      if (data.length < 1000) break;
+    }
+    candidates = matches.filter((m) => !fresh.has(m.venue.id));
+    console.log(`Skipping ${matches.length - candidates.length} venue(s) synced within ${SKIP_FRESH_DAYS} day(s).`);
+  }
+
+  const toSync = candidates.slice(0, LIMIT);
   console.log(`Fetching week_raw for ${toSync.length} venue(s)...`);
 
   // Phase 1: fetch everything before writing anything.
