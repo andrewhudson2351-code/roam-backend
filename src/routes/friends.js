@@ -128,11 +128,33 @@ router.patch("/location", authMiddleware, async (req, res) => {
     if (error) throw error;
     res.json({ success: true });
     if (isNewCheckIn) notifyFriendsOfCheckIn(req.user, venue).catch(() => {});
+    logVenueVisit(req.user.id, venue_id, lat, lng).catch((e) => console.error("visit log error:", e.message));
   } catch (err) {
     console.error("friend location error:", err);
     res.status(500).json({ error: "Failed to update location." });
   }
 });
+
+// Record an anonymous-aggregate venue visit for owner analytics: an explicit
+// check-in, or a passive GPS ping within 75m of a venue. Deduped to one event
+// per user+venue per 4h so re-reports and 60s pings don't inflate counts.
+async function logVenueVisit(userId, explicitVenueId, lat, lng) {
+  let venueId = explicitVenueId;
+  if (!venueId) {
+    const { data } = await supabase.rpc("find_nearby_venue", { p_lat: lat, p_lng: lng, p_radius_m: 75 });
+    venueId = data;
+  }
+  if (!venueId) return;
+  const fourHoursAgo = new Date(Date.now() - 4 * 3600000).toISOString();
+  const { data: recent } = await supabase.from("analytics_events")
+    .select("id").eq("user_id", userId).eq("venue_id", venueId)
+    .eq("event_type", "venue_visit").gte("created_at", fourHoursAgo).limit(1);
+  if (recent?.length) return;
+  await supabase.from("analytics_events").insert({ venue_id: venueId, user_id: userId, event_type: "venue_visit" });
+  const today = new Date().toISOString().split("T")[0];
+  const { error } = await supabase.rpc("increment_analytics", { p_venue_id: venueId, p_date: today, p_field: "visitor_count" });
+  if (error) console.error("increment visitor_count failed:", error.message);
+}
 
 // Tell a user's accepted friends (who also share location) that they've arrived.
 async function notifyFriendsOfCheckIn(user, venue) {

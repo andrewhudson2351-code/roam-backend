@@ -9,7 +9,7 @@ Orientation guide for future sessions (human or AI). Roam is a nightlife app: ve
 - **Auth:** Custom JWT (`jsonwebtoken`, 30-day expiry, signed with `JWT_SECRET`), passwords hashed with bcryptjs (cost 12) in a `users` table. **Not** Supabase Auth.
 - **Payments:** Stripe subscriptions for venue plans (`free` / `pro` / `premium`), webhook-driven sync.
 - **Email:** Resend API (password reset). Falls back to logging the reset link if `RESEND_API_KEY` is unset.
-- **Jobs:** `node-cron` inside the web process — `refresh_busy_scores` every 15 min (`src/jobs/refreshBusyScores.js`).
+- **Jobs:** `node-cron` inside the web process — `refresh_busy_scores` every 15 min (`src/jobs/refreshBusyScores.js`); `weekly_owner_digest` Mondays 13:00 UTC emails claimed-venue owners their analytics (`src/jobs/weeklyOwnerDigest.js`, no-op without `RESEND_API_KEY`).
 - **Frontend:** separate repo at `C:\Users\andre\roam-frontend` (Vite/React, `src/App.jsx` is the bulk of it). Maps are **Mapbox** (react-map-gl v8) — Google Maps was removed after the HeatmapLayer deprecation caused an outage. Never suggest Google Maps APIs.
 
 ## Layout
@@ -21,7 +21,8 @@ src/
     supabase.js     Shared Supabase client + syncSubscription/downgradeToFree
     stripe.js       Stripe client, webhook secret, price IDs
   middleware/auth.js JWT Bearer verification → req.user {id, email, username}
-  routes/           auth, venues, stories, deals, friends, dashboard, stripe, webhooks
+  routes/           auth, venues, stories, deals, friends, dashboard, stripe, webhooks, analytics
+  analytics/        compute.js — venue analytics breakout + weekly digest HTML (shared by route + cron)
 database/           empty — schema lives only in Supabase (use MCP list_tables)
 ```
 

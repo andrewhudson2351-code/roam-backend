@@ -61,6 +61,9 @@ router.post("/", authMiddleware, async (req, res) => {
     const { data, error } = await supabase.from("stories").insert({ user_id: req.user.id, venue_id, caption, media_url, emoji: emoji || "📸", visibility: visibility || "public", is_anonymous: is_anonymous || false }).select().single();
     if (error) throw error;
     res.status(201).json(data);
+    const today = new Date().toISOString().split("T")[0];
+    const { error: aErr } = await supabase.rpc("increment_analytics", { p_venue_id: venue_id, p_date: today, p_field: "story_count" });
+    if (aErr) console.error("increment story_count failed:", aErr.message);
   } catch (err) {
     res.status(500).json({ error: "Failed to post story." });
   }

@@ -19,8 +19,10 @@ const webhookRoutes   = require("./routes/webhooks");
 const adminAuth       = require("./middleware/adminAuth");
 const adminRoutes     = require("./routes/admin");
 const notificationRoutes = require("./routes/notifications");
+const analyticsRoutes = require("./routes/analytics");
 require("./config/apns"); // logs a warning if push isn't configured yet
 const refreshBusyScores = require("./jobs/refreshBusyScores");
+const weeklyOwnerDigest = require("./jobs/weeklyOwnerDigest");
 
 const app = express();
 app.set('trust proxy', 1);
@@ -57,6 +59,7 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/stripe",    stripeRoutes);
 app.use("/api/admin",     adminAuth, adminRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 app.get("/", (req, res) => res.json({ status: "Roam API is live 🌍", version: "1.0.0" }));
 app.use((req, res) => res.status(404).json({ error: "Route not found" }));
@@ -72,5 +75,15 @@ cron.schedule("*/15 * * * *", async () => {
     console.log(`refresh_busy_scores: updated ${count} venues`);
   } catch (err) {
     console.error("refresh_busy_scores failed:", err);
+  }
+});
+
+// Mondays 13:00 UTC (~9am ET) — weekly analytics email to venue owners.
+cron.schedule("0 13 * * 1", async () => {
+  try {
+    const sent = await weeklyOwnerDigest();
+    console.log(`weekly_owner_digest: sent ${sent} emails`);
+  } catch (err) {
+    console.error("weekly_owner_digest failed:", err);
   }
 });
