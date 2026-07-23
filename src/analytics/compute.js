@@ -16,6 +16,17 @@ const WD_MAP = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 };
 const VISIT_WINDOW_H = 48; // deal_click -> venue_visit attribution window
 const EVENING_IDX = [12, 13, 14, 15, 16, 17, 18, 19, 20]; // 6pm..2am, chart indexes
 
+// Estimated visitation: a DIRECTIONAL model, not a measured count (always
+// present it with a footnote). evening busy% x a typical capacity for the
+// venue's category x evening crowd turnover.
+const CATEGORY_CAPACITY = { Club: 150, Bar: 80, Restaurant: 70, Venue: 120, Event: 100 };
+const CROWD_TURNS = 2.5;
+function estimateVisitors(category, busyPct) {
+  if (busyPct == null) return null;
+  const cap = CATEGORY_CAPACITY[category] || 80;
+  return Math.round((cap * busyPct * CROWD_TURNS) / 100);
+}
+
 function localParts(date, tz) {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: tz, weekday: "short", hourCycle: "h23",
@@ -40,7 +51,7 @@ function chartSlot(date, tz) {
 async function computeVenueAnalytics(venueId) {
   const { data: venue, error: vErr } = await supabase
     .from("venues")
-    .select("id, name, city, neighborhood, owner_id")
+    .select("id, name, city, neighborhood, owner_id, category")
     .eq("id", venueId).single();
   if (vErr || !venue) throw new Error("Venue not found");
   const tz = CITY_TIMEZONES[venue.city] || DEFAULT_TIMEZONE;
@@ -145,10 +156,14 @@ async function computeVenueAnalytics(venueId) {
       avg_busy, peak_busy: w.busyN ? w.peak : null, evening_busy,
       typical_evening: typical,
       delta_pct: evening_busy != null && typical ? Math.round(((evening_busy - typical) / typical) * 100) : null,
+      est_visitors: estimateVisitors(venue.category, evening_busy ?? typical),
       views: w.views, visits: w.visits, clicks: w.clicks, redemptions: w.redemptions,
       deals: w.deals,
     };
   });
+  const estimated_visitors_7d = weekly.some((w) => w.est_visitors != null)
+    ? weekly.reduce((s, w) => s + (w.est_visitors || 0), 0)
+    : null;
 
   // Per-deal funnel. Confirmed visits: distinct users whose deal_click was
   // followed by a venue_visit at this venue within VISIT_WINDOW_H. Counts only.
@@ -191,13 +206,14 @@ async function computeVenueAnalytics(venueId) {
   const busiest = weekly.filter((w) => w.evening_busy != null).sort((a, b) => b.evening_busy - a.evening_busy)[0] || null;
 
   return {
-    venue: { id: venue.id, name: venue.name, city: venue.city, neighborhood: venue.neighborhood },
+    venue: { id: venue.id, name: venue.name, city: venue.city, neighborhood: venue.neighborhood, category: venue.category },
     timezone: tz,
     baseline,           // [7][24] typical busyness, day 0=Mon, idx 0=6am local
     reported,           // [7][24] {consumer_avg, consumer_n, owner_n} last 28d
     weekly,             // last 7 days, oldest first
     funnel,             // per-deal, sorted by activity
     totals_7d: { ...totals7, stories: stories.length },
+    estimated_visitors_7d, // directional model — surface only with a footnote
     busiest_night: busiest ? { day_text: busiest.day_text, evening_busy: busiest.evening_busy } : null,
   };
 }
@@ -245,11 +261,13 @@ function renderDigestHtml(a) {
       ${tile("Redemptions", t.redemptions)}
     </tr></table>
     <div style="padding:22px 0 8px">${digestBars(a.weekly)}</div>
-    ${a.busiest_night ? `<p style="font-size:14px;margin:16px 0 4px">Your busiest night was <strong style="color:${GOLD}">${a.busiest_night.day_text}</strong>.</p>` : ""}
+    ${a.estimated_visitors_7d != null ? `<p style="font-size:14px;margin:16px 0 4px">Estimated visitation this week: <strong style="color:${GOLD}">~${a.estimated_visitors_7d.toLocaleString()}</strong> guests*</p>` : ""}
+    ${a.busiest_night ? `<p style="font-size:14px;margin:${a.estimated_visitors_7d != null ? "4px" : "16px"} 0 4px">Your busiest night was <strong style="color:${GOLD}">${a.busiest_night.day_text}</strong>.</p>` : ""}
     ${best && best.delta_pct > 0 ? `<p style="font-size:14px;margin:4px 0">${best.day_text} ran <strong style="color:${GOLD}">+${best.delta_pct}%</strong> above your typical ${best.day_text}${best.deals.length ? ` — ${best.deals[0]} was live` : ""}.</p>` : ""}
     ${topDeal && (topDeal.clicks_30d || topDeal.redemptions_total) ? `<p style="font-size:14px;margin:4px 0 16px">Top deal: <strong style="color:${IVORY}">${topDeal.title}</strong> — ${topDeal.clicks_30d} views, ${topDeal.redemptions_total} redemptions.</p>` : ""}
     <p style="margin:24px 0 0"><a href="https://app.roaman.app" style="background:${GOLD};color:${CARBON};padding:12px 24px;border-radius:10px;text-decoration:none;font-weight:bold">Open your dashboard</a></p>
-    <p style="font-size:11px;color:#777;margin-top:20px">Visit counts are anonymous aggregates from users who opted into location sharing. Numbers grow as more Roamers use the app in ${a.venue.city}.</p>
+    ${a.estimated_visitors_7d != null ? `<p style="font-size:11px;color:#777;margin-top:20px">*Estimated visitation is a directional model — typical and reported busyness applied to a typical capacity for ${a.venue.category || "similar"} venues — not a measured count of guests.</p>` : ""}
+    <p style="font-size:11px;color:#777;margin-top:${a.estimated_visitors_7d != null ? "6px" : "20px"}">Visit counts are anonymous aggregates from users who opted into location sharing. Numbers grow as more Roamers use the app in ${a.venue.city}.</p>
   </div>`;
 }
 
