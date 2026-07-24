@@ -156,14 +156,18 @@ async function logVenueVisit(userId, explicitVenueId, lat, lng) {
   if (error) console.error("increment visitor_count failed:", error.message);
 }
 
-// Tell a user's accepted friends (who also share location) that they've arrived.
+// Tell a user's accepted friends that they've arrived. Reciprocal by design:
+// only friends who have location sharing enabled themselves get the push.
 async function notifyFriendsOfCheckIn(user, venue) {
   const { data: fr } = await supabase.from("friendships")
     .select("requester_id, addressee_id")
     .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`)
     .eq("status", "accepted");
   const friendIds = (fr || []).map(f => f.requester_id === user.id ? f.addressee_id : f.requester_id);
-  for (const fid of friendIds) {
+  if (!friendIds.length) return;
+  const { data: sharing } = await supabase.from("users")
+    .select("id").in("id", friendIds).eq("location_sharing", true);
+  for (const { id: fid } of sharing || []) {
     notifyUser(fid, { title: `@${user.username} is out`, body: `Just checked in at ${venue.name}`, data: { type: "checkin", venue_id: venue.id } });
   }
 }
