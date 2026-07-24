@@ -1,6 +1,7 @@
 const express = require("express");
 const { supabase } = require("../config/supabase");
 const authMiddleware = require("../middleware/auth");
+const { pushNewDealToRecentVisitors } = require("../marketing");
 
 const router = express.Router();
 
@@ -192,6 +193,7 @@ router.post("/", authMiddleware, async (req, res) => {
     if (!venue || venue.owner_id !== req.user.id) return res.status(403).json({ error: "You don't own this venue." });
     const { data, error } = await supabase.from("deals").insert({ venue_id, title, description, detail, is_premium_only: is_premium_only || false, expires_at: recurring ? RECURRING_SENTINEL : expires_at, tags, ...recurrence }).select().single();
     if (error) throw error;
+    pushNewDealToRecentVisitors(data).catch((e) => console.error("new deal push error:", e.message));
     res.status(201).json(data);
   } catch (err) {
     res.status(500).json({ error: "Failed to create deal." });

@@ -23,6 +23,7 @@ const analyticsRoutes = require("./routes/analytics");
 require("./config/apns"); // logs a warning if push isn't configured yet
 const refreshBusyScores = require("./jobs/refreshBusyScores");
 const weeklyOwnerDigest = require("./jobs/weeklyOwnerDigest");
+const marketingPushes = require("./jobs/marketingPushes");
 
 const app = express();
 app.set('trust proxy', 1);
@@ -85,5 +86,16 @@ cron.schedule("0 13 * * 1", async () => {
     console.log(`weekly_owner_digest: sent ${sent} emails`);
   } catch (err) {
     console.error("weekly_owner_digest failed:", err);
+  }
+});
+
+// Hourly at :05 — scheduled marketing pushes; each entry fires only in the
+// hour a city's local time matches its slot (opt-in users only).
+cron.schedule("5 * * * *", async () => {
+  try {
+    const sent = await marketingPushes();
+    if (sent) console.log(`marketing_pushes: sent ${sent}`);
+  } catch (err) {
+    console.error("marketing_pushes failed:", err);
   }
 });

@@ -2,6 +2,7 @@ const express = require("express");
 const { supabase } = require("../config/supabase");
 const authMiddleware = require("../middleware/auth");
 const { notifyUser } = require("../notify");
+const { pushNearbyDeal } = require("../marketing");
 
 const router = express.Router();
 
@@ -129,6 +130,7 @@ router.patch("/location", authMiddleware, async (req, res) => {
     res.json({ success: true });
     if (isNewCheckIn) notifyFriendsOfCheckIn(req.user, venue).catch(() => {});
     logVenueVisit(req.user.id, venue_id, lat, lng).catch((e) => console.error("visit log error:", e.message));
+    pushNearbyDeal(req.user.id, venue_id, lat, lng).catch((e) => console.error("nearby deal push error:", e.message));
   } catch (err) {
     console.error("friend location error:", err);
     res.status(500).json({ error: "Failed to update location." });

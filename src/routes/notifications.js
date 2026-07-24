@@ -21,6 +21,29 @@ router.post("/register", authMiddleware, async (req, res) => {
   }
 });
 
+// Marketing-push opt-in (Apple 4.5.4). Social pushes are not affected by this.
+router.get("/preferences", authMiddleware, async (req, res) => {
+  try {
+    const { data, error } = await supabase.from("users").select("notify_deals").eq("id", req.user.id).single();
+    if (error) throw error;
+    res.json({ notify_deals: data.notify_deals });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load preferences." });
+  }
+});
+
+router.patch("/preferences", authMiddleware, async (req, res) => {
+  try {
+    const { notify_deals } = req.body;
+    if (typeof notify_deals !== "boolean") return res.status(400).json({ error: "notify_deals must be true or false." });
+    const { error } = await supabase.from("users").update({ notify_deals }).eq("id", req.user.id);
+    if (error) throw error;
+    res.json({ success: true, notify_deals });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update preferences." });
+  }
+});
+
 // Called on logout so a shared device stops getting the previous user's pushes.
 router.post("/unregister", authMiddleware, async (req, res) => {
   try {
