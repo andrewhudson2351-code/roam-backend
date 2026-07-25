@@ -23,6 +23,7 @@ const EVENT_LINK = /event|calendar|whats-?on|happening|entertainment|live-?music
 const KEYWORDS = [
   "trivia", "karaoke", "live music", "open mic", "happy hour", "bingo",
   "dj ", "comedy", "tasting", "ladies night", "college night", "industry night",
+  "taco", "wing", "brunch", "mimosa", // themed-push tags: capture food specials even without a day word nearby
   "every monday", "every tuesday", "every wednesday", "every thursday", "every friday", "every saturday", "every sunday",
   "mondays", "tuesdays", "wednesdays", "thursdays", "fridays", "saturdays", "sundays",
 ];

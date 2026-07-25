@@ -1,0 +1,74 @@
+[
+  {
+    "venueName": "McCormick & Schmick's Seafood & Steaks",
+    "title": "Taco Tuesday at the Bar",
+    "detail": "Daily Twist: taco special at the bar & lounge, 3:30pm–close every Tuesday.",
+    "tags": ["Tacos"],
+    "recur_days": [2],
+    "recur_start": "15:30",
+    "recur_end": "23:00"
+  },
+  {
+    "venueName": "McCormick & Schmick's Seafood & Steaks",
+    "title": "$3 Ahi Tuna Poke Wednesdays",
+    "detail": "Daily Twist: $3 ahi tuna poke at the bar & lounge, 3:30pm–close.",
+    "tags": ["Apps/Small Plates"],
+    "recur_days": [3],
+    "recur_start": "15:30",
+    "recur_end": "23:00"
+  },
+  {
+    "venueName": "Mama's on the Half Shell",
+    "title": "Bottomless Brunch (9am–3pm)",
+    "detail": "Every Saturday & Sunday, 9am–3pm.",
+    "tags": ["Brunch"],
+    "recur_days": [0, 6],
+    "recur_start": "09:00",
+    "recur_end": "15:00"
+  },
+  {
+    "venueName": "Barcocina",
+    "title": "Bottomless Mimosas at Brunch",
+    "detail": "Weekend brunch on the waterfront — bottomless mimosas.",
+    "tags": ["Brunch", "Cocktails"],
+    "recur_days": [0, 6],
+    "recur_start": "00:00",
+    "recur_end": "23:59"
+  },
+  {
+    "venueName": "Rusty Scupper Restaurant & Bar",
+    "title": "Sunday Brunch Buffet (from 10:30am)",
+    "detail": "Award-winning brunch buffet every Sunday starting at 10:30am.",
+    "tags": ["Brunch"],
+    "recur_days": [0],
+    "recur_start": "00:00",
+    "recur_end": "23:59"
+  },
+  {
+    "venueName": "Fogo de Chão Brazilian Steakhouse",
+    "title": "Weekend Brazilian Brunch",
+    "detail": "Saturday & Sunday brunch from 11:30am.",
+    "tags": ["Brunch"],
+    "recur_days": [0, 6],
+    "recur_start": "00:00",
+    "recur_end": "23:59"
+  },
+  {
+    "venueName": "Hersh’s",
+    "title": "Thursday Smash Burger + Truffle Fries",
+    "detail": "Smash burger with thrice-cooked truffle fries — Thursdays only, until they run out.",
+    "tags": ["Apps/Small Plates"],
+    "recur_days": [4],
+    "recur_start": "00:00",
+    "recur_end": "23:59"
+  },
+  {
+    "venueName": "Frazier's On the Avenue",
+    "title": "$2 Tacos at the Bar (Fri 4–7pm)",
+    "detail": "Soft and hard tacos, $2 at the bar, Fridays 4–7pm.",
+    "tags": ["Tacos", "Happy Hour"],
+    "recur_days": [5],
+    "recur_start": "16:00",
+    "recur_end": "19:00"
+  }
+]

@@ -1,0 +1,47 @@
+[
+  {
+    "venueName": "21st Amendment",
+    "title": "Taco Tuesday: $6 Tacos",
+    "detail": "Weekly special — choice of shrimp, chipotle chicken, or braised short rib, $6 every Tuesday.",
+    "tags": ["Tacos"],
+    "recur_days": [2],
+    "recur_start": "00:00",
+    "recur_end": "23:59"
+  },
+  {
+    "venueName": "Back Bay Social",
+    "title": "Half Off Apps at the Bar (3–7pm)",
+    "detail": "Monday–Wednesday, 3–7pm, bar only.",
+    "tags": ["Apps/Small Plates", "Happy Hour"],
+    "recur_days": [1, 2, 3],
+    "recur_start": "15:00",
+    "recur_end": "19:00"
+  },
+  {
+    "venueName": "Back Bay Social",
+    "title": "Weekend Brunch",
+    "detail": "Saturday & Sunday brunch in Back Bay.",
+    "tags": ["Brunch"],
+    "recur_days": [0, 6],
+    "recur_start": "00:00",
+    "recur_end": "23:59"
+  },
+  {
+    "venueName": "Aquitaine",
+    "title": "Weekend Brunch (10am–3pm)",
+    "detail": "Saturday & Sunday 10am–3pm — croque madames, moules frites, omelettes, mimosas.",
+    "tags": ["Brunch"],
+    "recur_days": [0, 6],
+    "recur_start": "10:00",
+    "recur_end": "15:00"
+  },
+  {
+    "venueName": "Legal Sea Foods - Copley Place",
+    "title": "Happy Hour: $1 Oysters",
+    "detail": "Daily happy hour at the bar, 3–6pm — same program as the other Legal locations.",
+    "tags": ["Happy Hour"],
+    "recur_days": [0, 1, 2, 3, 4, 5, 6],
+    "recur_start": "15:00",
+    "recur_end": "18:00"
+  }
+]

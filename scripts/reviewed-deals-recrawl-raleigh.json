@@ -1,0 +1,38 @@
+[
+  {
+    "venueName": "Sullivan's Steakhouse",
+    "title": "Bar Happy Hour (Mon–Fri)",
+    "detail": "Weekday happy hour at the bar.",
+    "tags": ["Happy Hour"],
+    "recur_days": [1, 2, 3, 4, 5],
+    "recur_start": "00:00",
+    "recur_end": "23:59"
+  },
+  {
+    "venueName": "The Big Easy NC",
+    "title": "Sunday: Bloody Marys & Mimosas",
+    "detail": "Classic bloody marys and mimosas are the Sunday special.",
+    "tags": ["Brunch", "Cocktails"],
+    "recur_days": [0],
+    "recur_start": "00:00",
+    "recur_end": "23:59"
+  },
+  {
+    "venueName": "The Willard Rooftop Lounge",
+    "title": "Sunday Rooftop Brunch (12–4pm)",
+    "detail": "À la carte rooftop brunch every Sunday, 12–4pm.",
+    "tags": ["Brunch"],
+    "recur_days": [0],
+    "recur_start": "12:00",
+    "recur_end": "16:00"
+  },
+  {
+    "venueName": "Amedeo's Italian Restaurant",
+    "title": "Pizza + 8 Wings for $25 (Dine-in)",
+    "detail": "Daily special — large two-topping pizza and 8 wings, dine-in only, 11am–9pm.",
+    "tags": ["Pizza", "Wings"],
+    "recur_days": [0, 1, 2, 3, 4, 5, 6],
+    "recur_start": "11:00",
+    "recur_end": "21:00"
+  }
+]
