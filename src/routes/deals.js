@@ -41,9 +41,12 @@ router.get("/", async (req, res) => {
     const { data, error } = await query;
     if (error) throw error;
     // With ?day=N (0=Sun..6=Sat): every deal that runs that weekday, ignoring
-    // time-of-day so users can browse/plan. Without it: only what's live right now.
+    // time-of-day so users can browse/plan. ?day=all: every active deal on any
+    // day (the Saved filter view). Without it: only what's live right now.
     let filtered;
-    if (day !== undefined && day !== "") {
+    if (day === "all") {
+      filtered = data;
+    } else if (day !== undefined && day !== "") {
       const d = Number(day);
       if (!Number.isInteger(d) || d < 0 || d > 6) return res.status(400).json({ error: "day must be an integer 0-6." });
       filtered = data.filter(deal => !deal.recur_days || deal.recur_days.includes(d));
