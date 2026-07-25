@@ -503,6 +503,24 @@ router.get("/:id", async (req, res) => {
         } catch { return null; }
       })(),
     ]);
+    // Vibes from the same 90-min window as the busy score; counts per tag.
+    const { data: recentReports } = await supabase.from("crowd_reports").select("vibe_tags")
+      .eq("venue_id", req.params.id).gt("reported_at", new Date(now - 90 * 60000).toISOString());
+    const vibeCounts = {};
+    for (const r of recentReports || []) for (const t of r.vibe_tags || []) vibeCounts[t] = (vibeCounts[t] || 0) + 1;
+    const vibes = Object.entries(vibeCounts).sort((a, b) => b[1] - a[1]).map(([tag, count]) => ({ tag, count }));
+    const [{ count: favCount }, myFav] = await Promise.all([
+      supabase.from("venue_favorites").select("*", { count: "exact", head: true }).eq("venue_id", req.params.id),
+      (async () => {
+        const authHeader = req.headers.authorization;
+        if (!authHeader?.startsWith("Bearer ")) return false;
+        try {
+          const user = jwt.verify(authHeader.split(" ")[1], process.env.JWT_SECRET);
+          const { data } = await supabase.from("venue_favorites").select("venue_id").eq("venue_id", req.params.id).eq("user_id", user.id).maybeSingle();
+          return !!data;
+        } catch { return false; }
+      })(),
+    ]);
 
     // Explicit public shape — never spread the venue row here (it carries
     // owner_id, stripe_customer_id, google_place_id).
@@ -538,6 +556,9 @@ router.get("/:id", async (req, res) => {
         : null,
       typical_today: typical ? { day_int: typical.day_int, hour_data: typical.hour_data, now_index: hourIndex } : null,
       friends_here: friendsHere,
+      vibes,
+      favorite_count: favCount || 0,
+      is_favorited: myFav,
     });
   } catch (err) {
     console.error("venue detail error:", err);
@@ -563,11 +584,14 @@ router.get("/:id/photos/:idx", async (req, res) => {
 });
 
 // POST /api/venues/:id/crowd
+const VIBE_TAGS = ["Chill", "Buzzing", "Packed", "Line Out The Door", "Live Music", "Dancing"];
 router.post("/:id/crowd", authMiddleware, crowdReportLimiter, async (req, res) => {
   try {
-    const { busy_level } = req.body;
+    const { busy_level, vibe_tags } = req.body;
     if (typeof busy_level !== "number" || busy_level < 0 || busy_level > 100) return res.status(400).json({ error: "busy_level must be a number between 0-100." });
-    await supabase.from("crowd_reports").insert({ venue_id: req.params.id, user_id: req.user.id, busy_level });
+    const vibes = Array.isArray(vibe_tags) ? [...new Set(vibe_tags.filter((t) => VIBE_TAGS.includes(t)))].slice(0, 3) : [];
+    await supabase.from("crowd_reports").insert({ venue_id: req.params.id, user_id: req.user.id, busy_level, vibe_tags: vibes });
+    notifyOwnerOfCrowdReport(req.params.id, req.user.id, busy_level, vibes).catch(() => {});
     const { data: scores } = await supabase.from("crowd_reports").select("busy_level").eq("venue_id", req.params.id).gt("reported_at", new Date(Date.now() - 90 * 60 * 1000).toISOString());
     const avg = scores.reduce((sum, r) => sum + r.busy_level, 0) / scores.length;
     await supabase.from("venue_busy_scores").upsert({ venue_id: req.params.id, busy_score: Math.round(avg), report_count: scores.length, last_updated: new Date().toISOString() });
@@ -579,6 +603,46 @@ router.post("/:id/crowd", authMiddleware, crowdReportLimiter, async (req, res) =
   } catch (err) {
     console.error("crowd report error:", err);
     res.status(500).json({ error: "Failed to submit crowd report." });
+  }
+});
+
+// Owner hears about the first crowd report on their venue each day.
+async function notifyOwnerOfCrowdReport(venueId, reporterId, busyLevel, vibes) {
+  const { data: venue } = await supabase.from("venues").select("id, name, owner_id").eq("id", venueId).single();
+  if (!venue?.owner_id || venue.owner_id === reporterId) return;
+  const { sendOwnerPush } = require("../marketing");
+  await sendOwnerPush(venue.owner_id, {
+    kind: "owner_crowd", refId: venue.id, dedupeDays: 1,
+    title: `${venue.name} is getting reports`,
+    body: `A Roamer just reported it ${busyLevel}% busy${vibes.length ? ` — ${vibes.join(", ")}` : ""}.`,
+    data: { type: "owner_crowd", venue_id: venue.id },
+  });
+}
+
+// POST /api/venues/:id/favorite — toggle. GET /favorites/mine — the user's list.
+router.post("/:id/favorite", authMiddleware, async (req, res) => {
+  try {
+    const { data: existing } = await supabase.from("venue_favorites").select("venue_id").eq("venue_id", req.params.id).eq("user_id", req.user.id).maybeSingle();
+    if (existing) {
+      await supabase.from("venue_favorites").delete().eq("venue_id", req.params.id).eq("user_id", req.user.id);
+      return res.json({ favorited: false });
+    }
+    const { error } = await supabase.from("venue_favorites").insert({ venue_id: req.params.id, user_id: req.user.id });
+    if (error && error.code !== "23505") throw error;
+    res.json({ favorited: true });
+  } catch (err) {
+    console.error("favorite toggle error:", err);
+    res.status(500).json({ error: "Failed to update favorite." });
+  }
+});
+
+router.get("/favorites/mine", authMiddleware, async (req, res) => {
+  try {
+    const { data, error } = await supabase.from("venue_favorites").select("venue_id").eq("user_id", req.user.id);
+    if (error) throw error;
+    res.json((data || []).map((r) => r.venue_id));
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load favorites." });
   }
 });
 

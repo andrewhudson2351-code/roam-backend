@@ -19,6 +19,7 @@ const webhookRoutes   = require("./routes/webhooks");
 const adminAuth       = require("./middleware/adminAuth");
 const adminRoutes     = require("./routes/admin");
 const notificationRoutes = require("./routes/notifications");
+const shareRoutes = require("./routes/share");
 const analyticsRoutes = require("./routes/analytics");
 require("./config/apns"); // logs a warning if push isn't configured yet
 const refreshBusyScores = require("./jobs/refreshBusyScores");
@@ -61,6 +62,7 @@ app.use("/api/stripe",    stripeRoutes);
 app.use("/api/admin",     adminAuth, adminRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/analytics", analyticsRoutes);
+app.use("/share", shareRoutes);
 
 app.get("/", (req, res) => res.json({ status: "Roam API is live 🌍", version: "1.0.0" }));
 app.use((req, res) => res.status(404).json({ error: "Route not found" }));

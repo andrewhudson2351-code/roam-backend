@@ -74,6 +74,16 @@ function redemptionReceipt(row, deal) {
   };
 }
 
+router.get("/my-saves", authMiddleware, async (req, res) => {
+  try {
+    const { data, error } = await supabase.from("deal_saves").select("deal_id").eq("user_id", req.user.id);
+    if (error) throw error;
+    res.json((data || []).map((r) => r.deal_id));
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load saved deals." });
+  }
+});
+
 router.get("/my-redemptions", authMiddleware, async (req, res) => {
   try {
     const { data, error } = await supabase.from("deal_redemptions").select("deal_id, code, redeemed_at").eq("user_id", req.user.id);
@@ -114,6 +124,14 @@ router.post("/:id/redeem", authMiddleware, async (req, res) => {
     if (!row) throw new Error("could not generate a unique redemption code");
     const { error: countError } = await supabase.rpc("increment_deal_redemptions", { p_deal_id: req.params.id });
     if (countError) throw countError;
+    if (deal.venues?.owner_id && deal.venues.owner_id !== req.user.id) {
+      const { notifyUser } = require("../notify");
+      notifyUser(deal.venues.owner_id, {
+        title: "Deal redeemed 🎉",
+        body: `${deal.title} — code ${row.code} was just claimed at ${deal.venues.name}.`,
+        data: { type: "owner_redemption", deal_id: deal.id },
+      });
+    }
     res.json({ success: true, redemption: redemptionReceipt(row, deal) });
   } catch (err) {
     console.error("deal redeem error:", err);

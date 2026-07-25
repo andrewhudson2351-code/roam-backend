@@ -9,16 +9,23 @@ const authMiddleware = require("../middleware/auth");
 const { stripe } = require("../config/stripe");
 
 const router = express.Router();
-const signToken = (user) => jwt.sign({ id: user.id, email: user.email, username: user.username }, process.env.JWT_SECRET, { expiresIn: "30d" });
+// tv = token_version: bumped on password reset so stolen/old tokens die.
+const signToken = (user) => jwt.sign({ id: user.id, email: user.email, username: user.username, tv: user.token_version || 0 }, process.env.JWT_SECRET, { expiresIn: "30d" });
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const USERNAME_RE = /^[a-zA-Z0-9._-]{3,20}$/;
 
 router.post("/register", async (req, res) => {
   try {
     const { email, password, username, display_name, home_city } = req.body;
     if (!email || !password || !username) return res.status(400).json({ error: "Email, password, and username are required." });
-    if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters." });
+    if (typeof email !== "string" || !EMAIL_RE.test(email)) return res.status(400).json({ error: "Enter a valid email address." });
+    if (typeof username !== "string" || !USERNAME_RE.test(username)) return res.status(400).json({ error: "Username must be 3-20 characters: letters, numbers, dots, dashes, underscores." });
+    if (typeof password !== "string" || password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters." });
+    if (password.length > 200) return res.status(400).json({ error: "Password is too long." });
 
     const password_hash = await bcrypt.hash(password, 12);
-    const { data, error } = await supabase.from("users").insert({ email, password_hash, username, display_name: display_name || username, home_city: home_city || null }).select("id, email, username, display_name, is_premium, home_city").single();
+    const { data, error } = await supabase.from("users").insert({ email: email.trim().toLowerCase(), password_hash, username, display_name: display_name || username, home_city: (home_city || "").trim() || null }).select("id, email, username, display_name, is_premium, home_city, token_version").single();
     if (error) {
       if (error.code === "23505") return res.status(409).json({ error: "Email or username already taken." });
       throw error;
@@ -151,7 +158,9 @@ router.post("/reset-password", async (req, res) => {
     }
 
     const password_hash = await bcrypt.hash(password, 12);
-    const { error: updateError } = await supabase.from("users").update({ password_hash }).eq("id", row.user_id);
+    // Bump token_version so every session issued before the reset is dead.
+    const { data: u } = await supabase.from("users").select("token_version").eq("id", row.user_id).single();
+    const { error: updateError } = await supabase.from("users").update({ password_hash, token_version: (u?.token_version || 0) + 1 }).eq("id", row.user_id);
     if (updateError) throw updateError;
     await supabase.from("password_reset_tokens").update({ used_at: new Date().toISOString() }).eq("id", row.id);
 

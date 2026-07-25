@@ -59,16 +59,34 @@ async function pushNearbyDeal(userId, explicitVenueId, lat, lng) {
   });
 }
 
+// Owner-facing push: about THEIR venue, so not gated on notify_deals.
+// push_log still dedupes so a busy night can't spam the owner.
+async function sendOwnerPush(userId, { kind, refId = null, dedupeDays = 0, title, body, data }) {
+  if (dedupeDays && refId) {
+    const since = new Date(Date.now() - dedupeDays * 86400000).toISOString();
+    const { data: hit } = await supabase.from("push_log").select("id")
+      .eq("user_id", userId).eq("kind", kind).eq("ref_id", refId).gte("sent_at", since).limit(1);
+    if (hit?.length) return false;
+  }
+  await supabase.from("push_log").insert({ user_id: userId, kind, ref_id: refId });
+  notifyUser(userId, { title, body, data });
+  return true;
+}
+
 // New deal at your spot — owner posts a deal, users with a venue_visit there
-// in the last 30 days hear about it. Max one per venue per week per user.
+// in the last 30 days OR the venue favorited hear about it. Max one per venue
+// per week per user.
 async function pushNewDealToRecentVisitors(deal) {
   const { data: venue } = await supabase.from("venues").select("id, name, city").eq("id", deal.venue_id).single();
   if (!venue) return;
   const since = new Date(Date.now() - 30 * 86400000).toISOString();
-  const { data: visits } = await supabase.from("analytics_events")
-    .select("user_id").eq("venue_id", deal.venue_id).eq("event_type", "venue_visit")
-    .gte("created_at", since).not("user_id", "is", null);
-  const userIds = [...new Set((visits || []).map((v) => v.user_id))];
+  const [{ data: visits }, { data: favs }] = await Promise.all([
+    supabase.from("analytics_events")
+      .select("user_id").eq("venue_id", deal.venue_id).eq("event_type", "venue_visit")
+      .gte("created_at", since).not("user_id", "is", null),
+    supabase.from("venue_favorites").select("user_id").eq("venue_id", deal.venue_id),
+  ]);
+  const userIds = [...new Set([...(visits || []), ...(favs || [])].map((v) => v.user_id))];
   for (const uid of userIds) {
     await sendMarketingPush(uid, {
       kind: "venue_new_deal", refId: venue.id, dedupeDays: 7,
@@ -79,4 +97,4 @@ async function pushNewDealToRecentVisitors(deal) {
   }
 }
 
-module.exports = { sendMarketingPush, pushNearbyDeal, pushNewDealToRecentVisitors, localHour };
+module.exports = { sendMarketingPush, sendOwnerPush, pushNearbyDeal, pushNewDealToRecentVisitors, localHour };
