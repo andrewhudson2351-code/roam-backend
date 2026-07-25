@@ -23,6 +23,7 @@ const argVal = (flag) => {
 };
 const SINCE = argVal("--since");
 const LIMIT = argVal("--limit") ? Number(argVal("--limit")) : Infinity;
+const MATCH = argVal("--match"); // venue-name regex for targeted runs
 const GO = process.argv.includes("--go");
 
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -111,6 +112,7 @@ async function main() {
 
   const targets = candidates
     .filter((v) => !withBaseline.has(v.id) && v.address && !inBestTime(v))
+    .filter((v) => !MATCH || new RegExp(MATCH, "i").test(v.name))
     .slice(0, Math.min(LIMIT, MAX_VENUES));
 
   console.log(`Venues since ${SINCE}: ${candidates.length} | to add: ${targets.length}`);
