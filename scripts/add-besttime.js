@@ -24,6 +24,7 @@ const argVal = (flag) => {
 const SINCE = argVal("--since");
 const LIMIT = argVal("--limit") ? Number(argVal("--limit")) : Infinity;
 const MATCH = argVal("--match"); // venue-name regex for targeted runs
+const CITY = argVal("--city");   // exact city filter for city-launch runs
 const GO = process.argv.includes("--go");
 
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -87,10 +88,12 @@ async function main() {
   }
   console.log(`BestTime stored venues: ${stored.length}`);
 
-  const { data: candidates, error } = await supabase
+  let candQuery = supabase
     .from("venues")
     .select("id, name, address, city, latitude, longitude")
     .gte("created_at", SINCE);
+  if (CITY) candQuery = candQuery.eq("city", CITY);
+  const { data: candidates, error } = await candQuery;
   if (error) throw new FatalError(`venues query failed: ${error.message}`);
 
   const { data: haveHours, error: hErr } = await supabase
