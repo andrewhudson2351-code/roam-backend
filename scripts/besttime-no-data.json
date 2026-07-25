@@ -1,0 +1,447 @@
+{
+ "9ef011ad-e0a0-4e61-87b6-2f8d50ee144d": {
+  "name": "Appalachian Vintner",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "c689cfb3-a242-436d-81cc-f46371004cd6": {
+  "name": "Downtown Asheville",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "bf83a3e6-f0c4-4d0f-b2a6-7b9915d929d7": {
+  "name": "Finch Grocery",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "ca441d34-8ec6-40a5-aa7f-5375ae5b426e": {
+  "name": "Gemelli",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "c1680152-6127-49dc-a97c-a5dc51f2d29d": {
+  "name": "Café Bomba",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "045eddb7-a800-4924-ae46-12c1eb20c3c8": {
+  "name": "Havana Miami",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "7da722d6-1a88-4ada-bb3c-6552d4143e51": {
+  "name": "Mandara Hospitality Group",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "d5088223-8d8d-406a-b8f1-1f776778a3aa": {
+  "name": "Red Ginger Dimsum & Tapas",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "7e87298b-8597-4b2f-b596-80d6dfc4e33f": {
+  "name": "Sly Grog Lounge",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "96c58cc9-d669-4d8f-add4-3c9b5e80c9a8": {
+  "name": "Cultivated Cocktails Distillery Tavern",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "2af64d2b-02f7-46d5-8373-5578d6bba2ac": {
+  "name": "Claywood",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "f1a4e6c8-d62f-4cc3-964a-e2de2c5001c3": {
+  "name": "Ginger's Revenge",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "25a5f908-2b2c-4218-a935-e252e109c237": {
+  "name": "Riverside Rhapsody Beer Company",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "a8b108f1-00fc-4807-89f2-27f64a66ceff": {
+  "name": "Baby Bull",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "3977779c-c212-49f7-b88d-9c19a31e69a3": {
+  "name": "Botanist & Barrel Asheville",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "6e2a01e7-39d7-4eaf-8eec-3bcd03a78029": {
+  "name": "oneFIFTYone Boutique Bar & Kitchen",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "0425e67d-8cb2-4f85-ba77-e62dda25b6f3": {
+  "name": "Red Ribbon Society",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "c8189261-4e77-42fa-aca3-242cb052852d": {
+  "name": "Social Lounge",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "ff52b2e7-64d5-4886-88aa-64d8bf3df565": {
+  "name": "The Bar at Table",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "d17a35f7-421b-439c-87f0-137c7e61c87f": {
+  "name": "Fairview Cafe",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "119ae5b9-e4e1-43ae-b8e8-28db15cadc8f": {
+  "name": "Pardon My Cheesesteak",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "743d6694-1e9d-430d-9ec5-9fa09c1089a2": {
+  "name": "The Bevy Bar & Grill",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "47ccd1c9-5334-4f78-9512-402fec85eb7a": {
+  "name": "Mother Ocean Seafood Market and Restaurant",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "59cc0fc1-d630-4879-9a98-470a497c335d": {
+  "name": "All Souls Pizza",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "8bb37c34-90d1-4a3d-9173-d0d492b4d630": {
+  "name": "Bourbon Leaf Cigar Lounge",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "cac0b07d-05eb-478a-96c0-ed17cb74097b": {
+  "name": "Rhubarb",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "f3978f53-d884-4f11-af2b-7fdc613aab7f": {
+  "name": "The Observatory Rooftop Bar + Lounge",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "673995fb-ff26-43d9-9526-e0a98511c7a3": {
+  "name": "Aletitude",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "fa010dde-956b-4239-9b17-fc13d9498c63": {
+  "name": "Iron and Oak Brisket Co",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "7a98f6da-b7fa-4375-adb4-bbdd4af52b93": {
+  "name": "BREW-ed Brewery Tours",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "b844d86f-c91e-482c-af28-a45b8a9d478b": {
+  "name": "District 42",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "7ebe3eae-e3a2-41b3-990e-f10d1e7eb5f2": {
+  "name": "Hotel Eve Jazz & Cocktail Lounge",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "191e9865-bf4b-4ac7-82c9-90a4cb572dfd": {
+  "name": "Palmar Latin Kitchen",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "61237b9d-825a-40b8-8d19-6b0a9bf52092": {
+  "name": "Root Moon Kava",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "593677ca-2e7d-4c61-b86b-424bfe25c51a": {
+  "name": "WALLS Wine Bar",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "a8bc5e8e-72c6-4c3f-ba6a-5266f061f400": {
+  "name": "Wicked Weed Funkatorium",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "56fc3f6c-e71a-4d44-8317-01595c2e979d": {
+  "name": "Appalachian Beer Spa Massage Lounge",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "a56a4977-9aa5-4097-ac32-197b09cc0e81": {
+  "name": "MrBeast Burger",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "c70bca54-74b7-400a-86a7-8d9c0d4d9273": {
+  "name": "Sierra Nevada Beer Tours - Mills River, NC",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "609460bd-3392-4f4d-937d-cf86861e8342": {
+  "name": "WagWorld Pub & Off Leash Resort",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "e83e124d-fe49-4c92-8026-deeb0315d869": {
+  "name": "Master BBQ AVL",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "836a9216-59af-4fdd-a980-cc862ee8af24": {
+  "name": "The Biltmore Inn",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "f4b04627-17f9-4b30-91c2-74d68abe5c1f": {
+  "name": "Bargello",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "7be79d51-1482-4f3e-8477-7433d6adcd86": {
+  "name": "BRÜ",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "26eb6986-bd02-4511-b28e-379e9213abab": {
+  "name": "Hotel Indigo Asheville Downtown by IHG",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "2c0e8f1c-9d8a-4053-911a-d73d8a8a3e81": {
+  "name": "Posana Downtown",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "81dc351b-8516-43dc-870b-306bbbd1ab16": {
+  "name": "Master BBQ AVL",
+  "city": "Asheville",
+  "failed_at": "2026-07-24"
+ },
+ "1fc00150-ad45-447d-b581-5e188ddf448b": {
+  "name": "Sovereign Remedies",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "686e0303-a591-4a23-adca-4b8303804779": {
+  "name": "The Restoration Asheville",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "641348d0-744e-4f6a-a2dc-84f7773fa5a4": {
+  "name": "Water Street Bar & Lounge",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "42100fe3-d34f-4dd0-8a23-bc3c54a04899": {
+  "name": "Black Bear BBQ",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "2c9f427e-7b7a-4d60-9402-35af72eead21": {
+  "name": "828 Burger",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "709127b2-3d5b-4da1-a426-580647ad059a": {
+  "name": "Miyagi Sushi Hibachi Ramen Asheville",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "aa41cc59-9f2d-4688-9629-df36a9b856e6": {
+  "name": "QDOBA Mexican Eats",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "87d695fe-a7a0-4f9a-910f-bafda7c6ce33": {
+  "name": "Asheville Cotton Mill Studios",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "73a9615f-600c-4cee-9943-a141ece859b9": {
+  "name": "Battery Park Book Exchange & Champagne Bar",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "a7596332-497f-443d-8caf-9d0cfb4b1eac": {
+  "name": "Grove Arcade",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "ea6aa7e8-8524-4eed-882e-ea737139b555": {
+  "name": "Huli Sue's BBQ and Grill",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "7c33b8ca-0411-4fdf-b3fc-451c3fef9b75": {
+  "name": "Static Age Loft",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "c1122f2c-c879-4b0a-b903-00491422077a": {
+  "name": "The Flat Iron Rooftop",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "87960464-6640-4e7e-8e8b-3e60aa009bba": {
+  "name": "KIM",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "ff798cad-7112-4767-a164-364b9f285c44": {
+  "name": "Old Haywood Filling Station",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "1772c34b-f5e6-4943-a18a-604e86f2be4c": {
+  "name": "Frank's Roman Pizza",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "8edce22d-11f1-4e9a-919c-004672835b33": {
+  "name": "Quench! Wine Bistro",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "e9cc614f-85fe-41f8-b653-387884fb8093": {
+  "name": "Aura Arts",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "b376e297-e2ca-4365-b459-cd9f97d261b5": {
+  "name": "Milly's Tayse of Di Island",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "845411cd-35a0-4b9b-bf73-eef3dc781098": {
+  "name": "The Bull and Beggar",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "bd36d1be-ddcf-4b6f-a519-523fec0e39a3": {
+  "name": "Wedge Studios",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "83d32e1b-455b-43d5-a5c2-ba914278b562": {
+  "name": "Beer City Brewery Tours",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "e6a40642-6c31-4b27-b78f-af87931cf832": {
+  "name": "Piccolina",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "bda3aa1c-9ec0-44b8-b47d-09ea5c5cbca0": {
+  "name": "Finest - Deli, Dining, Drinks",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "ff914d30-773e-4719-a486-b3a5e70501f6": {
+  "name": "Jargon",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "df6b1c46-4f55-4e22-8d5a-a5ae548000e1": {
+  "name": "Taqueria Puebla",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "78b67173-3a86-4209-a1b4-b835ea3af8c2": {
+  "name": "Black Cat Sandwich Company",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "b387bbcd-baaf-4edf-8001-84985b8b5fda": {
+  "name": "The Roof",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "23c34462-1a58-4322-a874-5a3101fd497a": {
+  "name": "Tiger Bay Cafe",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "72270c3c-9eb5-4cbc-8b59-a096e880fe5c": {
+  "name": "Regina's Westside",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "97ccf18e-b4f2-4c67-bfdd-74eaf900437c": {
+  "name": "Fresh Wood Fired Pizza West",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "331dd09c-869f-4aa2-b292-fd8d92937ae6": {
+  "name": "Joyful Noise Listening Lounge and Kitchen",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "9f1baef1-1d11-4549-be49-699367fedf8d": {
+  "name": "Bear's Back Alley Bar",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "98c1f407-6357-47d0-b8f2-986dfd71439c": {
+  "name": "VISUALS Rooftop Bar",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "c95b881f-9393-47ce-960b-47f080133a36": {
+  "name": "Asheville Retrocade",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "9c962270-e7db-4d95-9ea6-572b551e2ff1": {
+  "name": "Neng Jr.'s",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "e23e6d2c-ce29-44f5-890e-fbb16605387d": {
+  "name": "Golden Hour",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "27f7113a-45c1-488a-8447-6173cbc20c3e": {
+  "name": "Bebop Bottle Shop",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "9078a5d9-4fa3-4155-8a5b-6a24116c2031": {
+  "name": "The Golden Pineapple",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "be331c8e-9432-4b50-8dd2-d45a26d4c1ec": {
+  "name": "Crusco",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "c3858807-5b2b-42bc-94d7-76c1e5e7b9a2": {
+  "name": "Good Hot Fish",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ },
+ "335ad3ab-2901-4f21-b145-98ff4baae38e": {
+  "name": "Botiwalla by Chai Pani",
+  "city": "Asheville",
+  "failed_at": "2026-07-25"
+ }
+}

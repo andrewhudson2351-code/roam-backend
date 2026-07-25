@@ -12,6 +12,19 @@
 //   railway variables --json | node scripts/add-besttime.js --since 2026-07-21 --go --limit 5
 
 const { createClient } = require("@supabase/supabase-js");
+const fs = require("fs");
+const path = require("path");
+
+// Venues BestTime returned "no data" for. Persisted so re-runs don't burn a
+// credit re-failing them; pass --retry-failed to try them again anyway.
+const NO_DATA_FILE = path.join(__dirname, "besttime-no-data.json");
+const RETRY_FAILED = process.argv.includes("--retry-failed");
+function loadNoData() {
+  try { return JSON.parse(fs.readFileSync(NO_DATA_FILE, "utf8")); } catch { return {}; }
+}
+function saveNoData(map) {
+  fs.writeFileSync(NO_DATA_FILE, JSON.stringify(map, null, 1));
+}
 
 const DAY_TEXT = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const MATCH_RADIUS_M = 200;
@@ -113,10 +126,14 @@ async function main() {
       );
     });
 
+  const noData = loadNoData();
   const targets = candidates
     .filter((v) => !withBaseline.has(v.id) && v.address && !inBestTime(v))
     .filter((v) => !MATCH || new RegExp(MATCH, "i").test(v.name))
+    .filter((v) => RETRY_FAILED || !noData[v.id])
     .slice(0, Math.min(LIMIT, MAX_VENUES));
+  const knownFailed = candidates.filter((v) => noData[v.id]).length;
+  if (knownFailed && !RETRY_FAILED) console.log(`Skipping ${knownFailed} venue(s) with a recorded no-data failure (--retry-failed to include).`);
 
   console.log(`Venues since ${SINCE}: ${candidates.length} | to add: ${targets.length}`);
   console.log(`Worst-case cost: ${targets.length * 2} credits (~$${(targets.length * 2 * 0.04).toFixed(2)} at $0.04/credit)`);
@@ -126,9 +143,17 @@ async function main() {
     return;
   }
 
-  let ok = 0, failed = 0, credits = 0;
+  let ok = 0, failed = 0, credits = 0, upserted = 0;
   const rows = [];
   const failures = [];
+  async function flush(sb, buf) {
+    while (buf.length) {
+      const chunk = buf.splice(0, 500);
+      const { error: upErr } = await sb.from("venue_typical_hours").upsert(chunk, { onConflict: "venue_id,day_int" });
+      if (upErr) throw new FatalError(`upsert failed: ${upErr.message}`);
+      upserted += chunk.length;
+    }
+  }
   for (const [i, v] of targets.entries()) {
     const params = new URLSearchParams({
       api_key_private: PRIVATE_KEY,
@@ -170,20 +195,20 @@ async function main() {
       failed++; credits += 1;
       const msg = body ? (typeof body.message === "string" ? body.message : JSON.stringify(body.message || body.status)) : "no response";
       failures.push({ name: v.name, city: v.city, msg });
+      noData[v.id] = { name: v.name, city: v.city, failed_at: new Date().toISOString().slice(0, 10) };
+      saveNoData(noData);
       console.log(`  FAIL ${v.name} (${v.city}): ${String(msg).slice(0, 100)}`);
     }
     if ((i + 1) % 20 === 0) console.log(`  ...${i + 1}/${targets.length} (credits so far: ~${credits})`);
-    await delay(500);
+    // Flush after every success: forecasts cost money and BestTime's
+    // new-forecast endpoint is slow (~10s/venue), so a killed run must
+    // never lose already-paid rows.
+    if (rows.length) await flush(supabase, rows);
+    await delay(200);
   }
+  await flush(supabase, rows);
 
-  for (let i = 0; i < rows.length; i += 500) {
-    const { error: upErr } = await supabase
-      .from("venue_typical_hours")
-      .upsert(rows.slice(i, i + 500), { onConflict: "venue_id,day_int" });
-    if (upErr) throw new FatalError(`upsert failed at chunk ${i / 500}: ${upErr.message}`);
-  }
-
-  console.log(`\nDone. Forecasted: ${ok} | No data: ${failed} | Baseline rows upserted: ${rows.length}`);
+  console.log(`\nDone. Forecasted: ${ok} | No data: ${failed} | Baseline rows upserted: ${upserted}`);
   console.log(`Estimated credits spent: ~${credits} (~$${(credits * 0.04).toFixed(2)} at $0.04/credit)`);
   if (failures.length) {
     console.log(`\nNo foot-traffic data (not added):`);
