@@ -638,11 +638,37 @@ router.post("/:id/favorite", authMiddleware, async (req, res) => {
 
 router.get("/favorites/mine", authMiddleware, async (req, res) => {
   try {
+    if (req.query.full) {
+      const { data, error } = await supabase.from("venue_favorites")
+        .select("created_at, venues(id, name, city, neighborhood, category, venue_busy_scores(busy_score, report_count))")
+        .eq("user_id", req.user.id).order("created_at", { ascending: false });
+      if (error) throw error;
+      return res.json((data || []).filter((r) => r.venues).map((r) => ({
+        ...r.venues,
+        busy_score: r.venues.venue_busy_scores?.busy_score ?? 0,
+        venue_busy_scores: undefined,
+        favorited_at: r.created_at,
+      })));
+    }
     const { data, error } = await supabase.from("venue_favorites").select("venue_id").eq("user_id", req.user.id);
     if (error) throw error;
     res.json((data || []).map((r) => r.venue_id));
   } catch (err) {
     res.status(500).json({ error: "Failed to load favorites." });
+  }
+});
+
+// Recent contribution history for the profile screen — the user's own crowd
+// reports only (aggregate visit pings stay anonymous by design).
+router.get("/activity/mine", authMiddleware, async (req, res) => {
+  try {
+    const { data, error } = await supabase.from("crowd_reports")
+      .select("busy_level, vibe_tags, reported_at, venues(id, name, city)")
+      .eq("user_id", req.user.id).order("reported_at", { ascending: false }).limit(30);
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load activity." });
   }
 });
 

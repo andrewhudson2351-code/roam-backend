@@ -79,6 +79,18 @@ function redemptionReceipt(row, deal) {
 
 router.get("/my-saves", authMiddleware, async (req, res) => {
   try {
+    if (req.query.full) {
+      const { data, error } = await supabase.from("deal_saves")
+        .select("created_at, deals(id, title, detail, tags, recur_days, recur_start, recur_end, expires_at, is_active, source, venue_id, venues(id, name, city))")
+        .eq("user_id", req.user.id).order("created_at", { ascending: false });
+      if (error) throw error;
+      const now = new Date();
+      return res.json((data || []).filter((r) => r.deals).map((r) => ({
+        ...r.deals,
+        is_live_now: isDealLiveNow(r.deals, now),
+        saved_at: r.created_at,
+      })));
+    }
     const { data, error } = await supabase.from("deal_saves").select("deal_id").eq("user_id", req.user.id);
     if (error) throw error;
     res.json((data || []).map((r) => r.deal_id));
