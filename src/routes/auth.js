@@ -12,6 +12,18 @@ const router = express.Router();
 // tv = token_version: bumped on password reset so stolen/old tokens die.
 const signToken = (user) => jwt.sign({ id: user.id, email: user.email, username: user.username, tv: user.token_version || 0 }, process.env.JWT_SECRET, { expiresIn: "30d" });
 
+// Durable auth-event log (login/register/reset) with client IP + UA, purged
+// after 90 days by a daily cron. Fire-and-forget: never blocks or fails the
+// auth response. trust proxy is set in index.js, so req.ip is the real client.
+function logAuthEvent(req, { event_type, user_id = null, email = null }) {
+  supabase.from("auth_events").insert({
+    event_type, user_id,
+    email: email ? email.trim().toLowerCase() : null,
+    ip: req.ip,
+    user_agent: (req.headers["user-agent"] || "").slice(0, 300),
+  }).then(({ error }) => { if (error) console.error("auth_event log error:", error.message); });
+}
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const USERNAME_RE = /^[a-zA-Z0-9._-]{3,20}$/;
 
@@ -30,6 +42,7 @@ router.post("/register", async (req, res) => {
       if (error.code === "23505") return res.status(409).json({ error: "Email or username already taken." });
       throw error;
     }
+    logAuthEvent(req, { event_type: "register", user_id: data.id, email: data.email });
     res.status(201).json({ user: data, token: signToken(data) });
   } catch (err) {
     console.error(err);
@@ -43,11 +56,18 @@ router.post("/login", async (req, res) => {
     if (!email || !password) return res.status(400).json({ error: "Email and password required." });
 
     const { data: user, error } = await supabase.from("users").select("*").eq("email", email).single();
-    if (error || !user) return res.status(401).json({ error: "Invalid email or password." });
+    if (error || !user) {
+      logAuthEvent(req, { event_type: "login_fail", email });
+      return res.status(401).json({ error: "Invalid email or password." });
+    }
 
     const valid = await bcrypt.compare(password, user.password_hash);
-    if (!valid) return res.status(401).json({ error: "Invalid email or password." });
+    if (!valid) {
+      logAuthEvent(req, { event_type: "login_fail", user_id: user.id, email });
+      return res.status(401).json({ error: "Invalid email or password." });
+    }
 
+    logAuthEvent(req, { event_type: "login_success", user_id: user.id, email: user.email });
     const { password_hash, ...safeUser } = user;
     res.json({ user: safeUser, token: signToken(user) });
   } catch (err) {
@@ -133,6 +153,7 @@ router.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
     });
     if (error) throw error;
 
+    logAuthEvent(req, { event_type: "password_reset_request", user_id: user.id, email: user.email });
     await sendResetEmail(user.email, `${APP_BASE_URL}/reset-password?token=${token}`);
     res.json(generic);
   } catch (err) {
@@ -164,6 +185,7 @@ router.post("/reset-password", async (req, res) => {
     if (updateError) throw updateError;
     await supabase.from("password_reset_tokens").update({ used_at: new Date().toISOString() }).eq("id", row.id);
 
+    logAuthEvent(req, { event_type: "password_reset_complete", user_id: row.user_id });
     res.json({ success: true });
   } catch (err) {
     console.error("reset-password error:", err);

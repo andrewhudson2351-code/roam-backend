@@ -6,6 +6,7 @@ const rateLimit = require("express-rate-limit");
 const cron = require("node-cron");
 // Config modules — throw at startup if required env vars are missing
 require("./config/twilio");
+const { supabase } = require("./config/supabase");
 if (!process.env.ADMIN_SECRET) throw new Error("ADMIN_SECRET is not set");
 const authRoutes      = require("./routes/auth");
 const venueRoutes     = require("./routes/venues");
@@ -89,6 +90,18 @@ cron.schedule("0 13 * * 1", async () => {
     console.log(`weekly_owner_digest: sent ${sent} emails`);
   } catch (err) {
     console.error("weekly_owner_digest failed:", err);
+  }
+});
+
+// Daily 08:00 UTC — purge auth_events older than 90 days (bounded PII retention).
+cron.schedule("0 8 * * *", async () => {
+  try {
+    const cutoff = new Date(Date.now() - 90 * 86400000).toISOString();
+    const { error } = await supabase.from("auth_events").delete().lt("created_at", cutoff);
+    if (error) throw error;
+    console.log("auth_events_purge: removed events older than 90 days");
+  } catch (err) {
+    console.error("auth_events_purge failed:", err);
   }
 });
 
