@@ -10,6 +10,7 @@ const fs = require("fs");
 const path = require("path");
 const { createClient } = require("@supabase/supabase-js");
 const { CITY_TIMEZONES, DEFAULT_TIMEZONE } = require("../src/config/timezones");
+const { assertPublicUrlAtFetch } = require("../src/util/safeUrl");
 
 const args = process.argv.slice(2);
 const argVal = (f) => { const i = args.indexOf(f); return i !== -1 ? args[i + 1] : null; };
@@ -39,20 +40,31 @@ function readStdinEnv() {
 }
 
 async function get(url) {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 12000);
-  try {
-    const res = await fetch(url, { headers: { "User-Agent": UA, Accept: "text/html,*/*" }, redirect: "follow", signal: ctrl.signal });
-    if (!res.ok) return { error: `HTTP ${res.status}` };
-    const type = res.headers.get("content-type") || "";
-    if (!type.includes("html")) return { error: `non-html: ${type.slice(0, 40)}` };
-    const html = await res.text();
-    return { html: html.slice(0, 1_500_000), finalUrl: res.url };
-  } catch (e) {
-    return { error: e.name === "AbortError" ? "timeout" : e.message.slice(0, 80) };
-  } finally {
-    clearTimeout(t);
+  // SSRF-safe: re-resolve + range-check every hop (websites are user-supplied).
+  let current = url;
+  for (let hop = 0; hop < 4; hop++) {
+    let safeHref;
+    try { safeHref = await assertPublicUrlAtFetch(current); } catch { return { error: "blocked-host" }; }
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 12000);
+    try {
+      const res = await fetch(safeHref, { headers: { "User-Agent": UA, Accept: "text/html,*/*" }, redirect: "manual", signal: ctrl.signal });
+      if (res.status >= 300 && res.status < 400 && res.headers.get("location")) {
+        current = new URL(res.headers.get("location"), safeHref).href;
+        continue;
+      }
+      if (!res.ok) return { error: `HTTP ${res.status}` };
+      const type = res.headers.get("content-type") || "";
+      if (!type.includes("html")) return { error: `non-html: ${type.slice(0, 40)}` };
+      const html = await res.text();
+      return { html: html.slice(0, 1_500_000), finalUrl: res.url || safeHref };
+    } catch (e) {
+      return { error: e.name === "AbortError" ? "timeout" : e.message.slice(0, 80) };
+    } finally {
+      clearTimeout(t);
+    }
   }
+  return { error: "too-many-redirects" };
 }
 
 function extractJsonLd(html) {

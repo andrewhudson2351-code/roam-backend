@@ -5,6 +5,7 @@
 // curation job (scripts/curate-scraped-deals.js) — this cron exists so a new
 // city or venue never sits deal-less because nobody re-ran the pipeline.
 const { supabase } = require("../config/supabase");
+const { assertPublicUrlAtFetch } = require("../util/safeUrl");
 
 const UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
 const SOCIAL = /facebook\.com|instagram\.com|twitter\.com|x\.com|tiktok\.com|linktr\.ee|untappd\.com/i;
@@ -53,14 +54,27 @@ function stripText(html) {
     .replace(/\s+/g, " ");
 }
 
+// SSRF-safe fetch: re-resolve + range-check the host on every hop (manual
+// redirects) so neither DNS rebinding nor a 30x to an internal address slips
+// through. Returns null on any unsafe/blocked/failed hop.
 async function get(url) {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 12000);
-  try {
-    const res = await fetch(url, { headers: { "User-Agent": UA, Accept: "text/html,*/*" }, redirect: "follow", signal: ctrl.signal });
-    if (!res.ok || !(res.headers.get("content-type") || "").includes("html")) return null;
-    return { html: (await res.text()).slice(0, 1_000_000), finalUrl: res.url };
-  } catch { return null; } finally { clearTimeout(t); }
+  let current = url;
+  for (let hop = 0; hop < 4; hop++) {
+    let safeHref;
+    try { safeHref = await assertPublicUrlAtFetch(current); } catch { return null; }
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 12000);
+    try {
+      const res = await fetch(safeHref, { headers: { "User-Agent": UA, Accept: "text/html,*/*" }, redirect: "manual", signal: ctrl.signal });
+      if (res.status >= 300 && res.status < 400 && res.headers.get("location")) {
+        current = new URL(res.headers.get("location"), safeHref).href; // validated on next loop
+        continue;
+      }
+      if (!res.ok || !(res.headers.get("content-type") || "").includes("html")) return null;
+      return { html: (await res.text()).slice(0, 1_000_000), finalUrl: res.url || safeHref };
+    } catch { return null; } finally { clearTimeout(t); }
+  }
+  return null;
 }
 
 async function venueTexts(website) {

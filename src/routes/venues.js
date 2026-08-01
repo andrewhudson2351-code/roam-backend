@@ -6,6 +6,7 @@ const rateLimit = require("express-rate-limit");
 const { client: twilioClient, verifyService } = require("../config/twilio");
 const { PLACES_KEY, fetchPlaceDetails, resolvePhotoUri } = require("../config/places");
 const { isDealLiveNow } = require("./deals");
+const { isPublicHttpUrl } = require("../util/safeUrl");
 const { shapeEvent, cityNow, addDays } = require("./events");
 
 const router = express.Router();
@@ -677,6 +678,7 @@ router.post("/", authMiddleware, async (req, res) => {
   try {
     const { name, address, neighborhood, latitude, longitude, category, description, phone, website, instagram } = req.body;
     if (!name || !address || !neighborhood || !latitude || !longitude) return res.status(400).json({ error: "name, address, neighborhood, latitude, longitude are required." });
+    if (website && !isPublicHttpUrl(website)) return res.status(400).json({ error: "Website must be a valid public http(s) URL." });
     const { data, error } = await supabase.from("venues").insert({ name, address, neighborhood, latitude, longitude, category, description, phone, website, instagram, owner_id: req.user.id }).select().single();
     if (error) throw error;
     res.status(201).json(data);
@@ -691,7 +693,7 @@ router.patch("/:id", authMiddleware, async (req, res) => {
   if (!venue || venue.owner_id !== req.user.id) return res.status(403).json({ error: "Not authorized." });
   const allowed = ["name", "description", "address", "phone", "website", "instagram", "cover_image_url"];
   const updates = Object.fromEntries(Object.entries(req.body).filter(([k]) => allowed.includes(k)));
- 
+  if (updates.website && !isPublicHttpUrl(updates.website)) return res.status(400).json({ error: "Website must be a valid public http(s) URL." });
   const { data } = await supabase.from("venues").update(updates).eq("id", req.params.id).select().single();
   res.json(data);
 });
