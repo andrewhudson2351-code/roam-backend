@@ -25,6 +25,7 @@ require("./config/apns"); // logs a warning if push isn't configured yet
 const refreshBusyScores = require("./jobs/refreshBusyScores");
 const weeklyOwnerDigest = require("./jobs/weeklyOwnerDigest");
 const marketingPushes = require("./jobs/marketingPushes");
+const autoScrapeDeals = require("./jobs/autoScrapeDeals");
 
 const app = express();
 app.set('trust proxy', 1);
@@ -88,6 +89,17 @@ cron.schedule("0 13 * * 1", async () => {
     console.log(`weekly_owner_digest: sent ${sent} emails`);
   } catch (err) {
     console.error("weekly_owner_digest failed:", err);
+  }
+});
+
+// Sundays 09:00 UTC — auto-crawl deal coverage for venues added this week
+// with a website and no deals (strict happy-hour-with-times pattern only).
+cron.schedule("0 9 * * 0", async () => {
+  try {
+    const { crawled, inserted } = await autoScrapeDeals();
+    console.log(`auto_scrape_deals: crawled ${crawled}, inserted ${inserted}`);
+  } catch (err) {
+    console.error("auto_scrape_deals failed:", err);
   }
 });
 

@@ -526,11 +526,11 @@ router.get("/:id", async (req, res) => {
     // owner_id, stripe_customer_id, google_place_id).
     const { id, name, address, neighborhood, city, category, latitude, longitude,
       description, phone, website, instagram, is_verified, cover_image_url, plan,
-      heatmap_boost, created_at } = venue;
+      heatmap_boost, created_at, dog_friendly } = venue;
     res.json({
       id, name, address, neighborhood, city, category, latitude, longitude,
       description, phone, website, instagram, is_verified, cover_image_url, plan,
-      heatmap_boost, created_at,
+      heatmap_boost, created_at, dog_friendly,
       is_claimed: !!venue.owner_id,
       busy_score: venue.venue_busy_scores?.busy_score ?? 0,
       report_count: venue.venue_busy_scores?.report_count ?? 0,
