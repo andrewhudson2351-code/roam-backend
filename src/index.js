@@ -28,6 +28,7 @@ const weeklyOwnerDigest = require("./jobs/weeklyOwnerDigest");
 const marketingPushes = require("./jobs/marketingPushes");
 const autoScrapeDeals = require("./jobs/autoScrapeDeals");
 const { ensureMonthlyCrawl } = require("./jobs/monthlyCrawl");
+const { weeklyFounderDigest } = require("./jobs/founderDigest");
 
 const app = express();
 app.set('trust proxy', 1);
@@ -86,6 +87,16 @@ cron.schedule("*/15 * * * *", async () => {
     console.log(`refresh_busy_scores: updated ${count} venues`);
   } catch (err) {
     console.error("refresh_busy_scores failed:", err);
+  }
+});
+
+// Mondays 14:00 UTC — weekly founder metrics email (growth/active/retention).
+cron.schedule("0 14 * * 1", async () => {
+  try {
+    const sent = await weeklyFounderDigest();
+    console.log(`founder_digest: sent ${sent}`);
+  } catch (err) {
+    console.error("founder_digest failed:", err);
   }
 });
 
