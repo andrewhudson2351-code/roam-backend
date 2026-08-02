@@ -120,6 +120,23 @@ cron.schedule("0 8 * * *", async () => {
   }
 });
 
+// Daily 08:15 UTC — anonymize analytics_events older than 90 days: strip the
+// user_id but KEEP the row, so long-term aggregate trends survive while no
+// individual venue-visit/click history is retained past the analytics window
+// (owner analytics only ever use 7–30 day windows).
+cron.schedule("15 8 * * *", async () => {
+  try {
+    const cutoff = new Date(Date.now() - 90 * 86400000).toISOString();
+    const { error, count } = await supabase.from("analytics_events")
+      .update({ user_id: null }, { count: "exact" })
+      .lt("created_at", cutoff).not("user_id", "is", null);
+    if (error) throw error;
+    console.log(`analytics_anonymize: cleared user_id on ${count ?? 0} events older than 90 days`);
+  } catch (err) {
+    console.error("analytics_anonymize failed:", err);
+  }
+});
+
 // Sundays 09:00 UTC — auto-crawl deal coverage for venues added this week
 // with a website and no deals (strict happy-hour-with-times pattern only).
 cron.schedule("0 9 * * 0", async () => {
