@@ -17,6 +17,7 @@ const CITY = argVal("--city");
 const LIMIT = argVal("--limit") ? Number(argVal("--limit")) : Infinity;
 const SEND = process.argv.includes("--send");
 const PREVIEW = process.argv.includes("--preview");
+const TEST_TO = argVal("--test"); // send ONE rendered sample to this address only; touches no venue records
 const APP = "https://app.roaman.app";
 const API = process.env.API_PUBLIC_URL || "https://roam-backend-production.up.railway.app";
 const ADDRESS = "Roaman LLC, 3430 Madrigal Ln, Charlotte, NC 28214";
@@ -58,6 +59,25 @@ async function main() {
   if (error) throw new Error(error.message);
   const targets = (rows || []).slice(0, LIMIT);
   console.log(`${CITY}: ${targets.length} venue(s) ready to email (status=harvested).\n`);
+
+  // --test: send a single rendered sample to the given address (e.g. your own
+  // inbox) so you can see exactly what venues would receive. No records touched.
+  if (TEST_TO) {
+    if (!targets.length) { console.log("No harvested venues to render a sample from."); return; }
+    if (!env("RESEND_API_KEY")) throw new Error("RESEND_API_KEY not set — cannot send test.");
+    const sample = targets[0].venues;
+    const resp = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env("RESEND_API_KEY")}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from: "Roaman <noreply@roaman.app>", to: [TEST_TO], reply_to: "dev@roaman.app",
+        subject: `[SAMPLE] ${sample.name} is already on Roaman — claim your page free`,
+        html: emailHtml(sample, targets[0].unsubscribe_token),
+      }),
+    });
+    console.log(resp.ok ? `Sample sent to ${TEST_TO} (rendered for "${sample.name}"). Nothing else touched.` : `Test send failed: ${resp.status} ${(await resp.text()).slice(0, 200)}`);
+    return;
+  }
 
   if (PREVIEW && targets.length) {
     const v = targets[0].venues;

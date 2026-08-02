@@ -17,6 +17,10 @@ const CONTACT_LINK = /contact|about|reach|connect/i;
 const EMAIL_RE = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi;
 // Junk/vendor addresses that are never a venue's real inbox.
 const BAD_EMAIL = /noreply|no-reply|example\.|sentry|wixpress|\.png|\.jpg|\.gif|\.webp|godaddy|squarespace|@sentry|@wix|@2x|core-js|@babel|placeholder|domain\.com|email\.com|yourdomain/i;
+// Wrong-department prefixes — won't reach a decision-maker on claim outreach.
+const WRONG_DEPT = /^(accessibility|press|media|feedback|guestservices?|jobs|careers?|recruit\w*|hr|legal|privacy|webmaster|postmaster|hostmaster|abuse)@/i;
+// Personal providers a small venue might legitimately use as its main inbox.
+const FREE_PROVIDER = /@(gmail|yahoo|hotmail|outlook|live|aol|icloud|proton|protonmail)\./i;
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function readStdinEnv() {
@@ -42,15 +46,27 @@ async function get(url) {
   return null;
 }
 
-// Prefer an email on the site's own domain; reject junk; return best candidate.
+// Only trust an email on the venue's OWN domain or a personal free provider.
+// This drops corporate-parent / chain inboxes (a bar's own site but a
+// marriott.com / restaurant-group address) that won't convert on cold
+// outreach — precision over recall. Prefers a named person, then a generic
+// same-domain box, then a free-provider address.
 function pickEmail(html, siteHost) {
-  const found = new Set();
+  const domain = (siteHost || "").replace(/^www\./, "").toLowerCase();
+  const same = new Set(), free = new Set();
   let m; EMAIL_RE.lastIndex = 0;
-  while ((m = EMAIL_RE.exec(html))) { const e = m[0].toLowerCase(); if (!BAD_EMAIL.test(e)) found.add(e); }
-  if (!found.size) return null;
-  const list = [...found];
-  const domain = (siteHost || "").replace(/^www\./, "");
-  return list.find((e) => domain && e.endsWith("@" + domain)) || list.find((e) => !/gmail|yahoo|hotmail|outlook|aol/.test(e)) || list[0];
+  while ((m = EMAIL_RE.exec(html))) {
+    const e = m[0].toLowerCase();
+    if (BAD_EMAIL.test(e) || WRONG_DEPT.test(e)) continue;
+    if (domain && e.endsWith("@" + domain)) same.add(e);
+    else if (FREE_PROVIDER.test(e)) free.add(e);
+  }
+  const pick = (arr) => arr.find((e) => /^[a-z]+\.[a-z]+@/.test(e))
+    || arr.find((e) => !/^(info|hello|contact|hi|team|admin|orders|reservations|events)@/.test(e))
+    || arr[0];
+  if (same.size) return pick([...same]);
+  if (free.size) return [...free][0];
+  return null;
 }
 
 async function main() {
