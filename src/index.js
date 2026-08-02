@@ -27,6 +27,7 @@ const refreshBusyScores = require("./jobs/refreshBusyScores");
 const weeklyOwnerDigest = require("./jobs/weeklyOwnerDigest");
 const marketingPushes = require("./jobs/marketingPushes");
 const autoScrapeDeals = require("./jobs/autoScrapeDeals");
+const { ensureMonthlyCrawl } = require("./jobs/monthlyCrawl");
 
 const app = express();
 app.set('trust proxy', 1);
@@ -74,6 +75,11 @@ app.use((err, req, res, next) => {
 });
 app.listen(PORT, () => console.log(`Roam API running on port ${PORT}`));
 
+// Startup catch-up: if this month's crawl hasn't happened yet, kick it off a
+// minute after boot (so a redeploy right after the 1st still triggers it).
+// The atomic claim makes this a no-op if the month is already done/running.
+setTimeout(() => { ensureMonthlyCrawl().catch(err => console.error("monthly_crawl startup guard failed:", err)); }, 60000);
+
 cron.schedule("*/15 * * * *", async () => {
   try {
     const count = await refreshBusyScores();
@@ -91,6 +97,15 @@ cron.schedule("0 13 * * 1", async () => {
   } catch (err) {
     console.error("weekly_owner_digest failed:", err);
   }
+});
+
+// Daily 10:00 UTC — catch-up guard for the monthly deals+events crawl. The
+// atomic month-claim in ensureMonthlyCrawl means the crawl runs exactly once
+// per calendar month: on the 1st it's up, or the next day it self-heals if
+// the 1st was missed. (Also called ~1 min after startup, below.)
+cron.schedule("0 10 * * *", async () => {
+  try { await ensureMonthlyCrawl(); }
+  catch (err) { console.error("monthly_crawl guard failed:", err); }
 });
 
 // Daily 08:00 UTC — purge auth_events older than 90 days (bounded PII retention).
