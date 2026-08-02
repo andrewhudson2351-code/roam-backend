@@ -31,20 +31,26 @@ function readStdinEnv() {
   });
 }
 
-const esc = (s) => String(s || "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-
-function emailHtml(venue, unsubToken) {
+// Plain-text, personal founder note — deliverability + reply rate both beat a
+// styled template for cold B2B outreach (lands in Primary, reads human). The
+// see-and-claim link sits at the bottom; opt-out is a plain reply plus a link.
+function emailText(venue, unsubToken) {
   const page = `${APP}/v/${venue.id}`;
   const unsub = `${API}/api/outreach/unsubscribe?token=${unsubToken}`;
-  return `<div style="font-family:Georgia,serif;max-width:520px;margin:0 auto;color:#1C1C1C">
-    <p style="font-size:15px;line-height:1.6">Hi ${esc(venue.name)} team,</p>
-    <p style="font-size:15px;line-height:1.6">Your venue is already on <strong>Roaman</strong>, the going-out app for ${esc(venue.city)} — people are seeing ${esc(venue.name)} on our live map right now. We built the page; you can claim it and take control, free.</p>
-    <p style="font-size:15px;line-height:1.6">Claiming lets you post your specials and events, verify what shows on your page, and get a weekly report on how many people viewed and visited you. <strong>Founding venues get the full toolkit free for the first year.</strong></p>
-    <p style="margin:24px 0"><a href="${page}" style="background:#C8A96E;color:#1C1C1C;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:bold;font-size:15px">See your live page &amp; claim it</a></p>
-    <p style="font-size:13px;color:#555;line-height:1.6">Claiming takes about five minutes and is verified by a call to your business line. If you'd rather we take the page down, just reply and we will.</p>
-    <hr style="border:none;border-top:1px solid #ddd;margin:24px 0">
-    <p style="font-size:11px;color:#999;line-height:1.5">You received this because ${esc(venue.name)} is a public venue listed on Roaman. ${ADDRESS}. <a href="${unsub}" style="color:#999">Unsubscribe / don't contact this venue</a>.</p>
-  </div>`;
+  return `Hey ${venue.name} team,
+
+I'm Drew — I run Roaman, a going-out app here in ${venue.city}. ${venue.name} is already on our live map and people are finding you there.
+
+You can claim your page for free to post your specials and events, control what shows, and get a weekly report on how many people viewed and visited you. It takes about five minutes and is verified by a quick call to your business line. Founding venues get everything free for the first year.
+
+See your live page and claim it here:
+${page}
+
+If you'd rather not be listed, just reply and I'll take it down — or use this link: ${unsub}
+
+Thanks,
+Drew
+Roaman · ${ADDRESS}`;
 }
 
 async function main() {
@@ -71,8 +77,8 @@ async function main() {
       headers: { Authorization: `Bearer ${env("RESEND_API_KEY")}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         from: "Roaman <noreply@roaman.app>", to: [TEST_TO], reply_to: "dev@roaman.app",
-        subject: `[SAMPLE] ${sample.name} is already on Roaman — claim your page free`,
-        html: emailHtml(sample, targets[0].unsubscribe_token),
+        subject: `[SAMPLE] ${sample.name} on Roaman`,
+        text: emailText(sample, targets[0].unsubscribe_token),
       }),
     });
     console.log(resp.ok ? `Sample sent to ${TEST_TO} (rendered for "${sample.name}"). Nothing else touched.` : `Test send failed: ${resp.status} ${(await resp.text()).slice(0, 200)}`);
@@ -81,8 +87,8 @@ async function main() {
 
   if (PREVIEW && targets.length) {
     const v = targets[0].venues;
-    fs.writeFileSync("outreach-preview.html", emailHtml(v, targets[0].unsubscribe_token));
-    console.log("Wrote outreach-preview.html (sample for the first venue). Review it before --send.\n");
+    fs.writeFileSync("outreach-preview.txt", emailText(v, targets[0].unsubscribe_token));
+    console.log("Wrote outreach-preview.txt (sample for the first venue). Review it before --send.\n");
   }
   targets.slice(0, 15).forEach((t) => console.log(`  → ${t.venues.name}  <${t.email}>`));
   if (targets.length > 15) console.log(`  … and ${targets.length - 15} more`);
@@ -98,8 +104,8 @@ async function main() {
         headers: { Authorization: `Bearer ${env("RESEND_API_KEY")}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           from: "Roaman <noreply@roaman.app>", to: [t.email], reply_to: "dev@roaman.app",
-          subject: `${t.venues.name} is already on Roaman — claim your page free`,
-          html: emailHtml(t.venues, t.unsubscribe_token),
+          subject: `${t.venues.name} on Roaman`,
+          text: emailText(t.venues, t.unsubscribe_token),
         }),
       });
       if (resp.ok) { sent++; await supabase.from("venue_outreach").update({ status: "sent", sent_at: new Date().toISOString() }).eq("id", t.id); }
