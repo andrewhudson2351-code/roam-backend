@@ -267,6 +267,9 @@ router.post("/:id/claim/confirm", authMiddleware, async (req, res) => {
       .eq("id", venueId);
     if (venueUpdateError) throw venueUpdateError;
 
+    // Attribute the claim to the outreach campaign if this venue was contacted.
+    supabase.from("venue_outreach").update({ status: "claimed" }).eq("venue_id", venueId).then(() => {}, () => {});
+
     return res.json({ success: true, message: "Venue claimed successfully." });
   } catch (err) {
     console.error("claim/confirm error:", err);
