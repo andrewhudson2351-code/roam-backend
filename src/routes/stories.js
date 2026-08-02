@@ -39,7 +39,7 @@ router.get("/", authMiddleware, async (req, res) => {
     const friendIds = (fr || []).map(f => f.requester_id === req.user.id ? f.addressee_id : f.requester_id);
     const allowedAuthors = [req.user.id, ...friendIds].join(",");
     // users must be disambiguated: story_likes adds a second stories<->users relationship (PGRST201)
-    let query = supabase.from("stories").select(`*, venues(id, name, neighborhood), users!stories_user_id_fkey(username, display_name, avatar_url)`)
+    let query = supabase.from("stories").select(`*, venues(id, name, neighborhood, cover_image_url), users!stories_user_id_fkey(username, display_name, avatar_url)`)
       .gt("expires_at", new Date().toISOString())
       .or(`visibility.eq.public,user_id.in.(${allowedAuthors})`)
       .order("created_at", { ascending: false })
@@ -47,7 +47,9 @@ router.get("/", authMiddleware, async (req, res) => {
     if (venue_id) query = query.eq("venue_id", venue_id);
     const { data, error } = await query;
     if (error) throw error;
-    const stories = data.map(s => ({ ...s, users: s.is_anonymous ? null : s.users }));
+    // Hide the owner's personal identity on venue-authored stories — they're
+    // attributed to the venue, not the person who posted them.
+    const stories = data.map(s => ({ ...s, users: (s.is_anonymous || s.posted_as_venue) ? null : s.users }));
     res.json(stories);
   } catch (err) {
     res.status(500).json({ error: "Failed to load stories." });
@@ -56,9 +58,22 @@ router.get("/", authMiddleware, async (req, res) => {
 
 router.post("/", authMiddleware, async (req, res) => {
   try {
-    const { venue_id, caption, media_url, emoji, visibility, is_anonymous } = req.body;
+    const { venue_id, caption, media_url, emoji, visibility, is_anonymous, as_venue } = req.body;
     if (!venue_id) return res.status(400).json({ error: "venue_id is required." });
-    const { data, error } = await supabase.from("stories").insert({ user_id: req.user.id, venue_id, caption, media_url, emoji: emoji || "📸", visibility: visibility || "public", is_anonymous: is_anonymous || false }).select().single();
+    // Posting "as the venue" requires owning it. Venue stories are always
+    // public and never anonymous — they carry the venue's identity.
+    let postedAsVenue = false;
+    if (as_venue) {
+      const { data: v } = await supabase.from("venues").select("owner_id").eq("id", venue_id).single();
+      if (!v || v.owner_id !== req.user.id) return res.status(403).json({ error: "Only the venue owner can post as this venue." });
+      postedAsVenue = true;
+    }
+    const { data, error } = await supabase.from("stories").insert({
+      user_id: req.user.id, venue_id, caption, media_url, emoji: emoji || "📸",
+      visibility: postedAsVenue ? "public" : (visibility || "public"),
+      is_anonymous: postedAsVenue ? false : (is_anonymous || false),
+      posted_as_venue: postedAsVenue,
+    }).select().single();
     if (error) throw error;
     res.status(201).json(data);
     const today = new Date().toISOString().split("T")[0];

@@ -502,7 +502,7 @@ router.get("/:id", async (req, res) => {
       getPlaceData(venue),
       supabase.from("deals").select("*").eq("venue_id", req.params.id).eq("is_active", true).gt("expires_at", now.toISOString()),
       supabase.from("events").select("*, event_deals(deals(id, title, detail, description, tags, is_premium_only, is_active, expires_at, recur_days, recur_start, recur_end, source))").eq("venue_id", req.params.id).eq("is_active", true),
-      supabase.from("stories").select("id, caption, emoji, visibility, is_anonymous, like_count, created_at, users!stories_user_id_fkey(username, display_name, avatar_url)").eq("venue_id", req.params.id).eq("visibility", "public").gt("expires_at", now.toISOString()).order("created_at", { ascending: false }).limit(10),
+      supabase.from("stories").select("id, caption, emoji, visibility, is_anonymous, posted_as_venue, like_count, created_at, users!stories_user_id_fkey(username, display_name, avatar_url)").eq("venue_id", req.params.id).eq("visibility", "public").gt("expires_at", now.toISOString()).order("created_at", { ascending: false }).limit(10),
       supabase.from("venue_typical_hours").select("day_int, hour_data").eq("venue_id", req.params.id),
       (async () => {
         const authHeader = req.headers.authorization;
@@ -557,7 +557,7 @@ router.get("/:id", async (req, res) => {
         .filter(e => e.occurrences.length > 0)
         .sort((a, b) => (b.is_now - a.is_now) || a.next_occurrence.localeCompare(b.next_occurrence))
         .map(e => ({ ...e, venues: undefined })),
-      stories: stories || [],
+      stories: (stories || []).map(s => ({ ...s, users: (s.is_anonymous || s.posted_as_venue) ? null : s.users })),
       place: place
         ? {
             photos: (place.photos || []).map((p, i) => ({ index: i, width: p.width, height: p.height, attribution: p.attribution, attribution_uri: p.attribution_uri })),
