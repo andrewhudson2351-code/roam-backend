@@ -406,10 +406,19 @@ router.get("/", async (req, res) => {
     query = query.order("venue_busy_scores(busy_score)", { ascending: false, nullsFirst: false }).limit(500);
     const { data, error } = await query;
     if (error) throw error;
+    // Which of these venues have a BestTime baseline — drives the "no intel,
+    // scout for us" prompt (shown only when a venue has NO baseline at all).
+    const ids = data.map(v => v.id);
+    const withBaseline = new Set();
+    for (let i = 0; i < ids.length; i += 200) {
+      const { data: rows } = await supabase.from("venue_typical_hours").select("venue_id").in("venue_id", ids.slice(i, i + 200));
+      for (const r of rows || []) withBaseline.add(r.venue_id);
+    }
     const venues = data.map(v => ({
       ...v,
       busy_score: v.venue_busy_scores?.busy_score ?? 0,
       report_count: v.venue_busy_scores?.report_count ?? 0,
+      has_baseline: withBaseline.has(v.id),
       venue_busy_scores: undefined,
     }));
     // sort handled by SQL ORDER BY on venue_busy_scores.busy_score
@@ -494,7 +503,7 @@ router.get("/:id", async (req, res) => {
       supabase.from("deals").select("*").eq("venue_id", req.params.id).eq("is_active", true).gt("expires_at", now.toISOString()),
       supabase.from("events").select("*, event_deals(deals(id, title, detail, description, tags, is_premium_only, is_active, expires_at, recur_days, recur_start, recur_end, source))").eq("venue_id", req.params.id).eq("is_active", true),
       supabase.from("stories").select("id, caption, emoji, visibility, is_anonymous, like_count, created_at, users!stories_user_id_fkey(username, display_name, avatar_url)").eq("venue_id", req.params.id).eq("visibility", "public").gt("expires_at", now.toISOString()).order("created_at", { ascending: false }).limit(10),
-      supabase.from("venue_typical_hours").select("day_int, hour_data").eq("venue_id", req.params.id).eq("day_int", dayInt).maybeSingle(),
+      supabase.from("venue_typical_hours").select("day_int, hour_data").eq("venue_id", req.params.id),
       (async () => {
         const authHeader = req.headers.authorization;
         if (!authHeader?.startsWith("Bearer ")) return null;
@@ -504,6 +513,10 @@ router.get("/:id", async (req, res) => {
         } catch { return null; }
       })(),
     ]);
+    // typical is all baseline days for this venue; has_baseline drives the
+    // "scout for us" prompt (only shown when a venue has NO BestTime baseline).
+    const hasBaseline = Array.isArray(typical) && typical.length > 0;
+    const todayRow = (typical || []).find(r => r.day_int === dayInt) || null;
     // Vibes from the same 90-min window as the busy score; counts per tag.
     const { data: recentReports } = await supabase.from("crowd_reports").select("vibe_tags")
       .eq("venue_id", req.params.id).gt("reported_at", new Date(now - 90 * 60000).toISOString());
@@ -555,7 +568,8 @@ router.get("/:id", async (req, res) => {
             editorial_summary: place.editorial_summary,
           }
         : null,
-      typical_today: typical ? { day_int: typical.day_int, hour_data: typical.hour_data, now_index: hourIndex } : null,
+      typical_today: todayRow ? { day_int: todayRow.day_int, hour_data: todayRow.hour_data, now_index: hourIndex } : null,
+      has_baseline: hasBaseline,
       friends_here: friendsHere,
       vibes,
       favorite_count: favCount || 0,
