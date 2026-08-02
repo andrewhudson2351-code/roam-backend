@@ -57,6 +57,17 @@ function windowIn(text) {
   return start === end ? null : { start, end };
 }
 
+// Decode the common HTML entities that survive in JSON-LD name/description
+// fields (they come straight from JSON, not through stripText).
+function decodeEntities(s) {
+  if (typeof s !== "string") return s;
+  return s
+    .replace(/&amp;/g, "&").replace(/&#0?39;|&#x27;|&apos;/gi, "'")
+    .replace(/&quot;|&#34;/g, '"').replace(/&#0?38;/g, "&")
+    .replace(/&nbsp;/g, " ").replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n))
+    .replace(/\s+/g, " ").trim();
+}
+
 function stripText(html) {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -81,10 +92,10 @@ function extractJsonLdEvents(html) {
       const type = [].concat(n["@type"] || []).join(",");
       if (/Event/i.test(type) && n.name && n.startDate) {
         events.push({
-          name: String(n.name).slice(0, 120),
+          name: decodeEntities(String(n.name)).slice(0, 120),
           startDate: n.startDate,
           endDate: n.endDate,
-          description: typeof n.description === "string" ? n.description.slice(0, 300) : null,
+          description: typeof n.description === "string" ? decodeEntities(n.description).slice(0, 300) : null,
           image: typeof n.image === "string" ? n.image : Array.isArray(n.image) ? n.image[0] : n.image?.url || null,
         });
       }
