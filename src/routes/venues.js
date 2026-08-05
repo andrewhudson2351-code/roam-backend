@@ -400,7 +400,7 @@ router.get("/", async (req, res) => {
     const { city, neighborhood, category } = req.query;
     let query = supabase
       .from("venues")
-      .select("id, name, address, neighborhood, city, category, latitude, longitude, description, phone, website, instagram, is_verified, cover_image_url, plan, created_at, venue_busy_scores(busy_score, report_count, last_updated)");
+      .select("id, name, address, neighborhood, city, category, latitude, longitude, description, phone, website, instagram, is_verified, cover_image_url, plan, dog_friendly, created_at, venue_busy_scores(busy_score, report_count, last_updated)");
     if (city && city !== "all") query = query.eq("city", city);
     if (neighborhood) query = query.eq("neighborhood", neighborhood);
     if (category) query = query.eq("category", category);
