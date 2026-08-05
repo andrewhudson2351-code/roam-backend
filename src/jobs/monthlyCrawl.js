@@ -15,6 +15,7 @@
 // CRAWL_REPORT_EMAIL is set).
 const { supabase } = require("../config/supabase");
 const { assertPublicUrlAtFetch } = require("../util/safeUrl");
+const { cleanDetail } = require("../util/dealText");
 
 const UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
 const SOCIAL = /facebook\.com|instagram\.com|twitter\.com|x\.com|tiktok\.com|linktr\.ee|untappd\.com|doordash|grubhub|ubereats/i;
@@ -141,18 +142,23 @@ async function venuePages(website) {
   const home = await get(website);
   if (!home) return [];
   const pages = [home.html];
-  const links = new Set();
+  const candidates = new Set();
   const re = /<a[^>]+href=["']([^"'#]+)["']/gi;
+  const base = home.finalUrl || website;
   let m;
-  while ((m = re.exec(home.html)) && links.size < 2) {
+  while ((m = re.exec(home.html))) {
     const href = m[1];
     if (!SUBPAGE_LINK.test(href) || SOCIAL.test(href) || /\.(pdf|jpg|png|webp)(\?|$)/i.test(href)) continue;
     try {
-      const abs = new URL(href, home.finalUrl || website).href;
-      if (new URL(abs).hostname === new URL(home.finalUrl || website).hostname) links.add(abs);
+      const abs = new URL(href, base).href;
+      if (new URL(abs).hostname === new URL(base).hostname) candidates.add(abs);
     } catch { /* bad href */ }
   }
-  for (const link of links) { const sub = await get(link); if (sub) pages.push(sub.html); }
+  // Prefer specials/happy-hour/deals pages (that's where the offer lives) over
+  // generic menu/events pages, then take up to 3 distinct sub-pages.
+  const rank = (u) => (/special|happy-?hour|deal/i.test(u) ? 0 : 1);
+  const picked = [...candidates].sort((a, b) => rank(a) - rank(b)).slice(0, 3);
+  for (const link of picked) { const sub = await get(link); if (sub) pages.push(sub.html); }
   return pages;
 }
 
@@ -230,11 +236,21 @@ async function runCrawl(runId) {
               if (days.length && win && !dealKeys.has(key)) {
                 dealKeys.add(key);
                 const { error } = await supabase.from("deals").insert({
-                  venue_id: v.id, title: "Happy Hour", detail: snip.replace(/\s+/g, " ").trim().slice(0, 180),
+                  venue_id: v.id, title: "Happy Hour", detail: cleanDetail(text.slice(hi, hi + 220)),
                   tags: ["Happy Hour"], expires_at: RECURRING_SENTINEL, recur_days: days, recur_start: win.start, recur_end: win.end,
                   is_premium_only: false, source: "scraped", is_active: true,
                 });
                 if (!error) dealsInserted++;
+              }
+            }
+            // REPORT — day-specific specials without a happy-hour label (e.g.
+            // Duckworth's "$13.99 Fajitas Mondays"). Surface for manual review;
+            // don't auto-insert — a bare day+price is indistinguishable from a
+            // regular menu item, so a human decides.
+            if (report.length < REPORT_MAX && hi === -1) {
+              const dm = text.match(/[^.]{0,50}(?:\$\d{1,3}(?:\.\d{2})?|\d{1,2}\s*%\s*off|1\/2\s*off|half[\s-]?off|\bbogo\b)[^.]{0,50}/i);
+              if (dm && daysIn(dm[0]).length) {
+                report.push({ type: "day-special?", venue: v.name, city, kw: "special", snippet: dm[0].replace(/\s+/g, " ").trim().slice(0, 200) });
               }
             }
             // REPORT — recurring-event keywords with a day word (borderline).
