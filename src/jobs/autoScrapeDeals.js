@@ -6,6 +6,7 @@
 // city or venue never sits deal-less because nobody re-ran the pipeline.
 const { supabase } = require("../config/supabase");
 const { assertPublicUrlAtFetch } = require("../util/safeUrl");
+const { cleanDetail } = require("../util/dealText");
 
 const UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
 const SOCIAL = /facebook\.com|instagram\.com|twitter\.com|x\.com|tiktok\.com|linktr\.ee|untappd\.com/i;
@@ -113,6 +114,7 @@ async function run() {
   const targets = recent.filter((v) => !hasDeal.has(v.id) && !SOCIAL.test(v.website));
 
   let crawled = 0, inserted = 0;
+  const byCity = {}; // city -> deals inserted this run
   for (const v of targets) {
     crawled++;
     try {
@@ -125,18 +127,46 @@ async function run() {
         if (!days.length || !win) continue;
         const { error: iErr } = await supabase.from("deals").insert({
           venue_id: v.id, title: "Happy Hour",
-          detail: snippet.replace(/\s+/g, " ").trim().slice(0, 180),
+          detail: cleanDetail(text.slice(idx, idx + 220)),
           tags: ["Happy Hour"], expires_at: RECURRING_SENTINEL,
           recur_days: days, recur_start: win.start, recur_end: win.end,
           is_premium_only: false, source: "scraped", is_active: true,
         });
-        if (!iErr) inserted++;
+        if (!iErr) { inserted++; byCity[v.city] = (byCity[v.city] || 0) + 1; }
         break; // one auto-deal per venue max
       }
     } catch { /* venue site down — next */ }
     await delay(300);
   }
+  await maybeEmail({ crawled, inserted, byCity });
   return { crawled, inserted };
+}
+
+// Notify on every run that actually checked new venues (crawled > 0), so a new
+// city/venue getting auto-covered is visible. Silent when there were no new
+// venues to check (nothing ran) to avoid weekly empty mail.
+async function maybeEmail({ crawled, inserted, byCity }) {
+  const to = process.env.CRAWL_REPORT_EMAIL || process.env.FOUNDER_EMAIL;
+  if (!to || !process.env.RESEND_API_KEY || crawled === 0) {
+    if (crawled > 0) console.log(`auto_scrape_deals: crawled ${crawled}, inserted ${inserted} (set CRAWL_REPORT_EMAIL/FOUNDER_EMAIL to email this).`);
+    return;
+  }
+  const rows = Object.entries(byCity).sort((a, b) => b[1] - a[1])
+    .map(([c, n]) => `<tr><td>${(c || "").replace(/</g, "&lt;")}</td><td align="right">+${n}</td></tr>`).join("")
+    || `<tr><td colspan="2" style="color:#777">No new happy-hour deals matched this week.</td></tr>`;
+  const html = `<div style="font-family:Georgia,serif;color:#1C1C1C"><h2>Roaman weekly deal top-up</h2>
+    <p>Checked <strong>${crawled}</strong> newly-added venue(s) with no deals yet · auto-inserted <strong>${inserted}</strong> happy-hour deal(s).</p>
+    <table border="1" cellpadding="5" style="border-collapse:collapse;font-size:13px"><tr style="background:#f4f1ea"><th align="left">City</th><th>Deals added</th></tr>${rows}</table>
+    <p style="font-size:12px;color:#777;margin-top:16px">This weekly job only covers venues added in the last 8 days that had zero deals. The full deals+events crawl runs monthly.</p></div>`;
+  try {
+    const resp = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from: "Roaman <noreply@roaman.app>", to: [to], subject: `Roaman weekly deal top-up: +${inserted} deals across ${Object.keys(byCity).length || 0} city(ies)`, html }),
+    });
+    if (!resp.ok) console.error(`auto_scrape_deals email failed: ${resp.status}`);
+    else console.log(`auto_scrape_deals report emailed to ${to}.`);
+  } catch (e) { console.error("auto_scrape_deals email failed:", e.message); }
 }
 
 module.exports = run;

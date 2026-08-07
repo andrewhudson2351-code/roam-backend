@@ -162,24 +162,63 @@ async function venuePages(website) {
   return pages;
 }
 
+// Count current active deals + upcoming events per city (not just this run's
+// inserts), merged with the run's inserts, so the report shows real coverage.
+async function buildCityStats(cities, cityVenueIds, perCity, todayStr) {
+  const insertsOf = Object.fromEntries(perCity.map(c => [c.city, c]));
+  const stats = [];
+  for (const city of cities) {
+    const ids = cityVenueIds[city] || [];
+    let deals = 0, events = 0;
+    for (let i = 0; i < ids.length; i += 150) {
+      const chunk = ids.slice(i, i + 150);
+      const [{ count: dc }, { count: ec }] = await Promise.all([
+        supabase.from("deals").select("id", { count: "exact", head: true }).in("venue_id", chunk).eq("is_active", true),
+        supabase.from("events").select("id", { count: "exact", head: true }).in("venue_id", chunk).eq("is_active", true).gte("event_date", todayStr),
+      ]);
+      deals += dc || 0; events += ec || 0;
+    }
+    const ins = insertsOf[city] || { dealsInserted: 0, eventsInserted: 0 };
+    stats.push({ city, totalDeals: deals, totalEvents: events, dealsInserted: ins.dealsInserted, eventsInserted: ins.eventsInserted });
+  }
+  return stats.sort((a, b) => b.totalDeals - a.totalDeals);
+}
+
 async function maybeEmailReport(mk, summary) {
-  const to = process.env.CRAWL_REPORT_EMAIL;
+  // Send to CRAWL_REPORT_EMAIL, falling back to FOUNDER_EMAIL so a single
+  // founder address covers all internal digests.
+  const to = process.env.CRAWL_REPORT_EMAIL || process.env.FOUNDER_EMAIL;
   if (!to || !process.env.RESEND_API_KEY) {
-    console.log(`monthly_crawl report for ${mk} stored on monthly_crawl_runs (set CRAWL_REPORT_EMAIL to have it emailed).`);
+    console.log(`monthly_crawl report for ${mk} stored on monthly_crawl_runs (set CRAWL_REPORT_EMAIL or FOUNDER_EMAIL + RESEND_API_KEY to have it emailed).`);
     return;
   }
+  const stats = summary.cityStats || [];
+  const gTotDeals = stats.reduce((s, c) => s + c.totalDeals, 0);
+  const gTotEvents = stats.reduce((s, c) => s + c.totalEvents, 0);
+  const cityRows = stats.map(c =>
+    `<tr><td>${(c.city || "").replace(/</g, "&lt;")}</td>` +
+    `<td align="right">${c.totalDeals}</td><td align="right" style="color:#2e7d32">${c.dealsInserted ? "+" + c.dealsInserted : "—"}</td>` +
+    `<td align="right">${c.totalEvents}</td><td align="right" style="color:#2e7d32">${c.eventsInserted ? "+" + c.eventsInserted : "—"}</td></tr>`).join("");
   const rows = summary.report.slice(0, 80).map(r =>
     `<tr><td>${r.type}</td><td>${(r.venue || "").replace(/</g, "&lt;")}</td><td>${r.city}</td><td>${(r.kw || "")}</td><td>${(r.snippet || "").replace(/</g, "&lt;").slice(0, 140)}</td></tr>`).join("");
-  const html = `<div style="font-family:Georgia,serif"><h2>Roaman monthly crawl — ${mk}</h2>
-    <p>Cities crawled: ${summary.citiesCrawled} · Deals auto-inserted: ${summary.dealsInserted} · Events auto-inserted: ${summary.eventsInserted}</p>
-    <p>${summary.report.length} borderline candidate(s) for review${summary.report.length > 80 ? " (showing first 80)" : ""}:</p>
+  const html = `<div style="font-family:Georgia,serif;color:#1C1C1C"><h2>Roaman monthly crawl — ${mk}</h2>
+    <p><strong>Cities crawled:</strong> ${summary.citiesCrawled} · <strong>This run:</strong> +${summary.dealsInserted} deals, +${summary.eventsInserted} events.</p>
+    <h3 style="margin-bottom:6px">Coverage by city <span style="font-weight:normal;font-size:12px;color:#777">(live totals; green = added this run)</span></h3>
+    <table border="1" cellpadding="5" style="border-collapse:collapse;font-size:13px">
+      <tr style="background:#f4f1ea"><th align="left">City</th><th>Deals</th><th>+new</th><th>Events</th><th>+new</th></tr>
+      ${cityRows}
+      <tr style="font-weight:bold;background:#f4f1ea"><td>All cities</td><td align="right">${gTotDeals}</td><td align="right">+${summary.dealsInserted}</td><td align="right">${gTotEvents}</td><td align="right">+${summary.eventsInserted}</td></tr>
+    </table>
+    <p style="margin-top:20px">${summary.report.length} borderline candidate(s) for review${summary.report.length > 80 ? " (showing first 80)" : ""}:</p>
     <table border="1" cellpadding="4" style="border-collapse:collapse;font-size:12px"><tr><th>type</th><th>venue</th><th>city</th><th>kw</th><th>snippet</th></tr>${rows}</table></div>`;
   try {
-    await fetch("https://api.resend.com/emails", {
+    const resp = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: "Roaman <noreply@roaman.app>", to: [to], subject: `Roaman monthly crawl — ${mk}`, html }),
+      body: JSON.stringify({ from: "Roaman <noreply@roaman.app>", to: [to], subject: `Roaman monthly crawl — ${mk}: ${gTotDeals} deals, ${gTotEvents} events`, html }),
     });
+    if (!resp.ok) console.error(`monthly_crawl report email failed: ${resp.status} ${(await resp.text()).slice(0, 200)}`);
+    else console.log(`monthly_crawl report emailed to ${to}.`);
   } catch (e) { console.error("monthly_crawl report email failed:", e.message); }
 }
 
@@ -189,12 +228,16 @@ async function runCrawl(runId) {
   const todayStr = new Date().toISOString().slice(0, 10);
   let dealsInserted = 0, eventsInserted = 0, citiesCrawled = 0;
   const report = [];
+  const perCity = [];         // this run's inserts, per city
+  const cityVenueIds = {};    // city -> [venue ids], reused for end-of-run totals
 
   for (const city of cities) {
     const { data: venues } = await supabase.from("venues").select("id, name, city, website").eq("city", city).not("website", "is", null);
     if (!venues?.length) { citiesCrawled++; continue; }
     // Dedupe against existing deals/events at these venues.
     const ids = venues.map(v => v.id);
+    cityVenueIds[city] = ids;
+    let cityDeals = 0, cityEvents = 0;
     const dealKeys = new Set(), eventKeys = new Set();
     for (let i = 0; i < ids.length; i += 100) {
       const chunk = ids.slice(i, i + 100);
@@ -223,7 +266,7 @@ async function runCrawl(runId) {
                 venue_id: v.id, title: ev.name, description: ev.description, cover_image_url: ev.image,
                 tags: [], event_date: p.date, start_time: p.start, end_time: p.end, source: "scraped", is_active: true,
               });
-              if (!error) eventsInserted++;
+              if (!error) { eventsInserted++; cityEvents++; }
             }
             const text = stripText(html);
             const lower = text.toLowerCase();
@@ -240,7 +283,7 @@ async function runCrawl(runId) {
                   tags: ["Happy Hour"], expires_at: RECURRING_SENTINEL, recur_days: days, recur_start: win.start, recur_end: win.end,
                   is_premium_only: false, source: "scraped", is_active: true,
                 });
-                if (!error) dealsInserted++;
+                if (!error) { dealsInserted++; cityDeals++; }
               }
             }
             // REPORT — day-specific specials without a happy-hour label (e.g.
@@ -268,15 +311,20 @@ async function runCrawl(runId) {
       }
     }
     await Promise.all(Array.from({ length: 6 }, worker));
+    perCity.push({ city, dealsInserted: cityDeals, eventsInserted: cityEvents });
     citiesCrawled++;
   }
+
+  // Current live totals per city (not just this run's inserts) so the report
+  // lets you verify how much coverage each city actually has right now.
+  const cityStats = await buildCityStats(cities, cityVenueIds, perCity, todayStr);
 
   const trimmed = report.slice(0, REPORT_MAX);
   await supabase.from("monthly_crawl_runs").update({
     status: "done", deals_inserted: dealsInserted, events_inserted: eventsInserted,
     cities_crawled: citiesCrawled, report: trimmed, finished_at: new Date().toISOString(),
   }).eq("id", runId);
-  await maybeEmailReport(monthKey(), { dealsInserted, eventsInserted, citiesCrawled, report: trimmed });
+  await maybeEmailReport(monthKey(), { dealsInserted, eventsInserted, citiesCrawled, report: trimmed, cityStats });
   console.log(`monthly_crawl done: cities ${citiesCrawled}, deals +${dealsInserted}, events +${eventsInserted}, report ${trimmed.length}`);
 }
 
@@ -300,4 +348,4 @@ async function ensureMonthlyCrawl() {
   }
 }
 
-module.exports = { ensureMonthlyCrawl };
+module.exports = { ensureMonthlyCrawl, buildCityStats, maybeEmailReport };
