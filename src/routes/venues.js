@@ -373,7 +373,7 @@ router.get("/bounds", async (req, res) => {
     const { category } = req.query;
     let query = supabase
       .from("venues")
-      .select("id, name, address, neighborhood, city, category, latitude, longitude, description, phone, website, instagram, is_verified, cover_image_url, plan, created_at, venue_busy_scores(busy_score, report_count, last_updated)")
+      .select("id, name, address, neighborhood, city, category, latitude, longitude, description, phone, website, instagram, is_verified, cover_image_url, plan, dog_friendly, created_at, venue_busy_scores(busy_score, report_count, last_updated)")
       .gte("latitude", bounds.swLat).lte("latitude", bounds.neLat)
       .gte("longitude", bounds.swLng).lte("longitude", bounds.neLng);
     if (category) query = query.eq("category", category);
