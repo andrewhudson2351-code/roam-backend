@@ -9,6 +9,7 @@ const { createClient } = require("@supabase/supabase-js");
 
 const argVal = (f) => { const i = process.argv.indexOf(f); return i !== -1 ? process.argv[i + 1] : null; };
 const CITY = argVal("--city");
+const SINCE = argVal("--since"); // only venues created on/after this (ISO date/timestamp)
 const CATS = (argVal("--categories") || "Bar,Club,Venue").split(",").map((s) => s.trim());
 const LIMIT = argVal("--limit") ? Number(argVal("--limit")) : Infinity;
 const GO = process.argv.includes("--go");
@@ -33,10 +34,11 @@ async function main() {
   let q = supabase.from("venues").select("id, name, city, google_place_id")
     .is("dog_friendly", null).not("google_place_id", "is", null).in("category", CATS);
   if (CITY) q = q.eq("city", CITY);
+  if (SINCE) q = q.gte("created_at", SINCE);
   const { data: venues, error } = await q;
   if (error) throw new Error(error.message);
   const targets = venues.slice(0, LIMIT);
-  console.log(`Venues needing dog_friendly (${CATS.join("/")}${CITY ? ", " + CITY : ""}): ${venues.length} | this run: ${targets.length}`);
+  console.log(`Venues needing dog_friendly (${CATS.join("/")}${CITY ? ", " + CITY : ""}${SINCE ? ", since " + SINCE : ""}): ${venues.length} | this run: ${targets.length}`);
   console.log(`Worst-case cost: ~$${(targets.length * 0.025).toFixed(2)} (Enterprise SKU)`);
   if (!GO) { console.log("Dry run — pass --go to spend."); return; }
 
