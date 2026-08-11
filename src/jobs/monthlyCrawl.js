@@ -288,7 +288,7 @@ async function crawlVenueSet(venues, { todayStr, report = null, reportMax = REPO
           if (report && report.length < reportMax && hi === -1) {
             const dm = text.match(/[^.]{0,50}(?:\$\d{1,3}(?:\.\d{2})?|\d{1,2}\s*%\s*off|1\/2\s*off|half[\s-]?off|\bbogo\b)[^.]{0,50}/i);
             if (dm && daysIn(dm[0]).length) {
-              report.push({ type: "day-special?", venue: v.name, city: v.city, kw: "special", snippet: dm[0].replace(/\s+/g, " ").trim().slice(0, 200) });
+              report.push({ type: "day-special?", venue_id: v.id, venue: v.name, city: v.city, kw: "special", snippet: dm[0].replace(/\s+/g, " ").trim().slice(0, 200) });
             }
           }
           // REPORT — recurring-event keywords with a day word (borderline).
@@ -297,7 +297,7 @@ async function crawlVenueSet(venues, { todayStr, report = null, reportMax = REPO
               const i = lower.indexOf(kw);
               if (i === -1) continue;
               const snip = text.slice(Math.max(0, i - 100), i + 150).replace(/\s+/g, " ").trim();
-              if (daysIn(snip).length) { report.push({ type: "event?", venue: v.name, city: v.city, kw, snippet: snip.slice(0, 200) }); break; }
+              if (daysIn(snip).length) { report.push({ type: "event?", venue_id: v.id, venue: v.name, city: v.city, kw, snippet: snip.slice(0, 200) }); break; }
             }
           }
         }

@@ -21,6 +21,7 @@ const NEIGHBORHOOD = argVal("--neighborhood");
 const SINCE = argVal("--since");
 const DRY = process.argv.includes("--dry");
 const FORCE = process.argv.includes("--force");
+const REPORT_JSON = argVal("--report-json"); // dump review candidates to this file for curation
 
 function readStdinEnv() {
   return new Promise((resolve) => {
@@ -82,6 +83,10 @@ async function main() {
   }
 
   console.log(`\nDeep crawl done: +${dealsInserted} deals, +${eventsInserted} events across ${Object.keys(byCity).length} city bucket(s). ${report.length} review candidate(s).`);
+  if (REPORT_JSON) {
+    require("fs").writeFileSync(REPORT_JSON, JSON.stringify(report, null, 2));
+    console.log(`Wrote ${report.length} review candidate(s) to ${REPORT_JSON}.`);
+  }
   if (DRY) { console.log("--dry — no email sent."); return; }
   const cityStats = await buildCityStats(Object.keys(byCity), cityVenueIds, perCity, todayStr);
   await maybeEmailReport(`cluster deep-crawl ${todayStr} [${scope}]`, {
