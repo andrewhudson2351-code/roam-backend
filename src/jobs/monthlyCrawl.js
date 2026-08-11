@@ -222,6 +222,93 @@ async function maybeEmailReport(mk, summary) {
   } catch (e) { console.error("monthly_crawl report email failed:", e.message); }
 }
 
+// Crawl a SET of venues: insert future-dated JSON-LD events + strict
+// happy-hour deals, and push borderline candidates to `report` (day-specific
+// specials, recurring-event keywords). Dedupes against existing deals/events at
+// these venues. Returns this run's insert counts. Shared by the monthly cron
+// (called per city) and scripts/deep-crawl.js (called for a cluster).
+async function crawlVenueSet(venues, { todayStr, report = null, reportMax = REPORT_MAX, concurrency = 6 } = {}) {
+  let dealsInserted = 0, eventsInserted = 0;
+  if (!venues?.length) return { dealsInserted, eventsInserted };
+
+  // Dedupe against existing deals/events at these venues.
+  const ids = venues.map(v => v.id);
+  const dealKeys = new Set(), eventKeys = new Set();
+  for (let i = 0; i < ids.length; i += 100) {
+    const chunk = ids.slice(i, i + 100);
+    const [{ data: ds }, { data: es }] = await Promise.all([
+      supabase.from("deals").select("venue_id, title").in("venue_id", chunk),
+      supabase.from("events").select("venue_id, title, event_date").in("venue_id", chunk),
+    ]);
+    for (const d of ds || []) dealKeys.add(`${d.venue_id}|${(d.title || "").toLowerCase()}`);
+    for (const e of es || []) eventKeys.add(`${e.venue_id}|${(e.title || "").toLowerCase()}|${e.event_date || ""}`);
+  }
+
+  const queue = [...venues];
+  async function worker() {
+    while (queue.length) {
+      const v = queue.shift();
+      try {
+        for (const html of await venuePages(v.website)) {
+          // EVENTS — schema.org JSON-LD, future-dated only (strict).
+          for (const ev of extractJsonLdEvents(html)) {
+            const p = parseEventDate(ev.startDate, ev.endDate);
+            if (!p || p.date < todayStr) continue;
+            const key = `${v.id}|${ev.name.toLowerCase()}|${p.date}`;
+            if (eventKeys.has(key)) continue;
+            eventKeys.add(key);
+            const { error } = await supabase.from("events").insert({
+              venue_id: v.id, title: ev.name, description: ev.description, cover_image_url: ev.image,
+              tags: [], event_date: p.date, start_time: p.start, end_time: p.end, source: "scraped", is_active: true,
+            });
+            if (!error) eventsInserted++;
+          }
+          const text = stripText(html);
+          const lower = text.toLowerCase();
+          // DEALS — strict happy hour + day + window.
+          const hi = lower.indexOf("happy hour");
+          if (hi !== -1) {
+            const snip = text.slice(Math.max(0, hi - 140), hi + 180);
+            const days = daysIn(snip), win = windowIn(snip);
+            const key = `${v.id}|happy hour`;
+            if (days.length && win && !dealKeys.has(key)) {
+              dealKeys.add(key);
+              const { error } = await supabase.from("deals").insert({
+                venue_id: v.id, title: "Happy Hour", detail: cleanDetail(text.slice(hi, hi + 220)),
+                tags: ["Happy Hour"], expires_at: RECURRING_SENTINEL, recur_days: days, recur_start: win.start, recur_end: win.end,
+                is_premium_only: false, source: "scraped", is_active: true,
+              });
+              if (!error) dealsInserted++;
+            }
+          }
+          // REPORT — day-specific specials without a happy-hour label (e.g.
+          // Duckworth's "$13.99 Fajitas Mondays"). Surface for manual review;
+          // don't auto-insert — a bare day+price is indistinguishable from a
+          // regular menu item, so a human decides.
+          if (report && report.length < reportMax && hi === -1) {
+            const dm = text.match(/[^.]{0,50}(?:\$\d{1,3}(?:\.\d{2})?|\d{1,2}\s*%\s*off|1\/2\s*off|half[\s-]?off|\bbogo\b)[^.]{0,50}/i);
+            if (dm && daysIn(dm[0]).length) {
+              report.push({ type: "day-special?", venue: v.name, city: v.city, kw: "special", snippet: dm[0].replace(/\s+/g, " ").trim().slice(0, 200) });
+            }
+          }
+          // REPORT — recurring-event keywords with a day word (borderline).
+          if (report && report.length < reportMax) {
+            for (const kw of REPORT_KW) {
+              const i = lower.indexOf(kw);
+              if (i === -1) continue;
+              const snip = text.slice(Math.max(0, i - 100), i + 150).replace(/\s+/g, " ").trim();
+              if (daysIn(snip).length) { report.push({ type: "event?", venue: v.name, city: v.city, kw, snippet: snip.slice(0, 200) }); break; }
+            }
+          }
+        }
+      } catch { /* one venue down — continue */ }
+      await delay(80);
+    }
+  }
+  await Promise.all(Array.from({ length: concurrency }, worker));
+  return { dealsInserted, eventsInserted };
+}
+
 async function runCrawl(runId) {
   const { data: cityRows } = await supabase.from("venues").select("city").not("website", "is", null);
   const cities = [...new Set((cityRows || []).map(c => c.city).filter(Boolean))];
@@ -234,84 +321,10 @@ async function runCrawl(runId) {
   for (const city of cities) {
     const { data: venues } = await supabase.from("venues").select("id, name, city, website").eq("city", city).not("website", "is", null);
     if (!venues?.length) { citiesCrawled++; continue; }
-    // Dedupe against existing deals/events at these venues.
-    const ids = venues.map(v => v.id);
-    cityVenueIds[city] = ids;
-    let cityDeals = 0, cityEvents = 0;
-    const dealKeys = new Set(), eventKeys = new Set();
-    for (let i = 0; i < ids.length; i += 100) {
-      const chunk = ids.slice(i, i + 100);
-      const [{ data: ds }, { data: es }] = await Promise.all([
-        supabase.from("deals").select("venue_id, title").in("venue_id", chunk),
-        supabase.from("events").select("venue_id, title, event_date").in("venue_id", chunk),
-      ]);
-      for (const d of ds || []) dealKeys.add(`${d.venue_id}|${(d.title || "").toLowerCase()}`);
-      for (const e of es || []) eventKeys.add(`${e.venue_id}|${(e.title || "").toLowerCase()}|${e.event_date || ""}`);
-    }
-
-    const queue = [...venues];
-    async function worker() {
-      while (queue.length) {
-        const v = queue.shift();
-        try {
-          for (const html of await venuePages(v.website)) {
-            // EVENTS — schema.org JSON-LD, future-dated only (strict).
-            for (const ev of extractJsonLdEvents(html)) {
-              const p = parseEventDate(ev.startDate, ev.endDate);
-              if (!p || p.date < todayStr) continue;
-              const key = `${v.id}|${ev.name.toLowerCase()}|${p.date}`;
-              if (eventKeys.has(key)) continue;
-              eventKeys.add(key);
-              const { error } = await supabase.from("events").insert({
-                venue_id: v.id, title: ev.name, description: ev.description, cover_image_url: ev.image,
-                tags: [], event_date: p.date, start_time: p.start, end_time: p.end, source: "scraped", is_active: true,
-              });
-              if (!error) { eventsInserted++; cityEvents++; }
-            }
-            const text = stripText(html);
-            const lower = text.toLowerCase();
-            // DEALS — strict happy hour + day + window.
-            const hi = lower.indexOf("happy hour");
-            if (hi !== -1) {
-              const snip = text.slice(Math.max(0, hi - 140), hi + 180);
-              const days = daysIn(snip), win = windowIn(snip);
-              const key = `${v.id}|happy hour`;
-              if (days.length && win && !dealKeys.has(key)) {
-                dealKeys.add(key);
-                const { error } = await supabase.from("deals").insert({
-                  venue_id: v.id, title: "Happy Hour", detail: cleanDetail(text.slice(hi, hi + 220)),
-                  tags: ["Happy Hour"], expires_at: RECURRING_SENTINEL, recur_days: days, recur_start: win.start, recur_end: win.end,
-                  is_premium_only: false, source: "scraped", is_active: true,
-                });
-                if (!error) { dealsInserted++; cityDeals++; }
-              }
-            }
-            // REPORT — day-specific specials without a happy-hour label (e.g.
-            // Duckworth's "$13.99 Fajitas Mondays"). Surface for manual review;
-            // don't auto-insert — a bare day+price is indistinguishable from a
-            // regular menu item, so a human decides.
-            if (report.length < REPORT_MAX && hi === -1) {
-              const dm = text.match(/[^.]{0,50}(?:\$\d{1,3}(?:\.\d{2})?|\d{1,2}\s*%\s*off|1\/2\s*off|half[\s-]?off|\bbogo\b)[^.]{0,50}/i);
-              if (dm && daysIn(dm[0]).length) {
-                report.push({ type: "day-special?", venue: v.name, city, kw: "special", snippet: dm[0].replace(/\s+/g, " ").trim().slice(0, 200) });
-              }
-            }
-            // REPORT — recurring-event keywords with a day word (borderline).
-            if (report.length < REPORT_MAX) {
-              for (const kw of REPORT_KW) {
-                const i = lower.indexOf(kw);
-                if (i === -1) continue;
-                const snip = text.slice(Math.max(0, i - 100), i + 150).replace(/\s+/g, " ").trim();
-                if (daysIn(snip).length) { report.push({ type: "event?", venue: v.name, city, kw, snippet: snip.slice(0, 200) }); break; }
-              }
-            }
-          }
-        } catch { /* one venue down — continue */ }
-        await delay(80);
-      }
-    }
-    await Promise.all(Array.from({ length: 6 }, worker));
-    perCity.push({ city, dealsInserted: cityDeals, eventsInserted: cityEvents });
+    cityVenueIds[city] = venues.map(v => v.id);
+    const { dealsInserted: cd, eventsInserted: ce } = await crawlVenueSet(venues, { todayStr, report });
+    dealsInserted += cd; eventsInserted += ce;
+    perCity.push({ city, dealsInserted: cd, eventsInserted: ce });
     citiesCrawled++;
   }
 
@@ -348,4 +361,4 @@ async function ensureMonthlyCrawl() {
   }
 }
 
-module.exports = { ensureMonthlyCrawl, buildCityStats, maybeEmailReport };
+module.exports = { ensureMonthlyCrawl, buildCityStats, maybeEmailReport, crawlVenueSet };
