@@ -39,7 +39,7 @@ router.get("/", authMiddleware, async (req, res) => {
     const friendIds = (fr || []).map(f => f.requester_id === req.user.id ? f.addressee_id : f.requester_id);
     const allowedAuthors = [req.user.id, ...friendIds].join(",");
     // users must be disambiguated: story_likes adds a second stories<->users relationship (PGRST201)
-    let query = supabase.from("stories").select(`*, venues(id, name, neighborhood, cover_image_url), users!stories_user_id_fkey(username, display_name, avatar_url)`)
+    let query = supabase.from("stories").select(`*, venues(id, name, neighborhood, cover_image_url), users!stories_user_id_fkey(username, display_name, avatar_url), deals(id, title, detail)`)
       .gt("expires_at", new Date().toISOString())
       .or(`visibility.eq.public,user_id.in.(${allowedAuthors})`)
       .order("created_at", { ascending: false })
@@ -58,8 +58,16 @@ router.get("/", authMiddleware, async (req, res) => {
 
 router.post("/", authMiddleware, async (req, res) => {
   try {
-    const { venue_id, caption, media_url, emoji, visibility, is_anonymous, as_venue } = req.body;
+    const { venue_id, caption, media_url, emoji, visibility, is_anonymous, as_venue, deal_id } = req.body;
     if (!venue_id) return res.status(400).json({ error: "venue_id is required." });
+    // A story can reference the deal it was posted from. The caption snapshots
+    // the offer text client-side, so the story stands alone if the deal ends
+    // (FK is ON DELETE SET NULL).
+    if (deal_id) {
+      const { data: deal } = await supabase.from("deals").select("id, venue_id").eq("id", deal_id).single();
+      if (!deal) return res.status(400).json({ error: "Deal not found." });
+      if (deal.venue_id !== venue_id) return res.status(400).json({ error: "Deal doesn't belong to that venue." });
+    }
     // Posting "as the venue" requires owning it. Venue stories are always
     // public and never anonymous — they carry the venue's identity.
     let postedAsVenue = false;
@@ -73,6 +81,7 @@ router.post("/", authMiddleware, async (req, res) => {
       visibility: postedAsVenue ? "public" : (visibility || "public"),
       is_anonymous: postedAsVenue ? false : (is_anonymous || false),
       posted_as_venue: postedAsVenue,
+      deal_id: deal_id || null,
     }).select().single();
     if (error) throw error;
     res.status(201).json(data);

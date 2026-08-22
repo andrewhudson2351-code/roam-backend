@@ -277,28 +277,10 @@ router.post("/:id/claim/confirm", authMiddleware, async (req, res) => {
   }
 });
 
-// hour_data (BestTime day_raw) is 6am-anchored LOCAL time: index 0 = 6:00am on
-// day_int's day, index 23 = 5:00am the NEXT day. Server clock is UTC on Railway.
-const { CITY_TIMEZONES, DEFAULT_TIMEZONE } = require("../config/timezones");
-const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-function baselinePosition(city, now) {
-  const tz = CITY_TIMEZONES[city] || DEFAULT_TIMEZONE;
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz, weekday: "short", hour: "numeric", hourCycle: "h23",
-  }).formatToParts(now);
-  const localHour = Number(parts.find(p => p.type === "hour").value);
-  let dayInt = WEEKDAYS.indexOf(parts.find(p => p.type === "weekday").value);
-  let hourIndex;
-  if (localHour >= 6) {
-    hourIndex = localHour - 6;
-  } else {
-    // 0:00-5:59am belongs to the previous day's array
-    hourIndex = localHour + 18;
-    dayInt = (dayInt + 6) % 7;
-  }
-  return { dayInt, hourIndex, localHour };
-}
+// hour_data (BestTime day_raw) is 6am-anchored LOCAL time — the conversion
+// lives in util/typicalHours so the crowd-baseline rollup job shares it.
+const { CITY_TIMEZONES } = require("../config/timezones");
+const { baselinePosition } = require("../util/typicalHours");
 
 // GET /api/venues/baseline?city=Charlotte
 // or   /api/venues/baseline?swLat=&swLng=&neLat=&neLng=
@@ -364,6 +346,12 @@ function parseBounds(query) {
   return { swLat, swLng, neLat, neLng };
 }
 
+// Custom marker logos are a paid, moderated perk: served only while the plan
+// is currently paid AND the logo passed review, so a lapsed plan reverts to
+// the default pin with no extra bookkeeping.
+const PAID_PLANS = new Set(["pro", "premium"]);
+const publicMarkerLogo = v => (v.marker_approved && PAID_PLANS.has(v.plan) ? v.marker_logo_url || null : null);
+
 // GET /api/venues/bounds?swLat=&swLng=&neLat=&neLng=&category=
 // Assumes swLng <= neLng (no antimeridian crossing — all venues are US East Coast).
 router.get("/bounds", async (req, res) => {
@@ -373,7 +361,7 @@ router.get("/bounds", async (req, res) => {
     const { category } = req.query;
     let query = supabase
       .from("venues")
-      .select("id, name, address, neighborhood, city, category, latitude, longitude, description, phone, website, instagram, is_verified, cover_image_url, plan, dog_friendly, created_at, venue_busy_scores(busy_score, report_count, last_updated)")
+      .select("id, name, address, neighborhood, city, category, latitude, longitude, description, phone, website, instagram, is_verified, cover_image_url, plan, dog_friendly, marker_logo_url, marker_approved, created_at, venue_busy_scores(busy_score, report_count, last_updated)")
       .gte("latitude", bounds.swLat).lte("latitude", bounds.neLat)
       .gte("longitude", bounds.swLng).lte("longitude", bounds.neLng);
     if (category) query = query.eq("category", category);
@@ -386,6 +374,8 @@ router.get("/bounds", async (req, res) => {
       ...v,
       busy_score: v.venue_busy_scores?.busy_score ?? 0,
       report_count: v.venue_busy_scores?.report_count ?? 0,
+      marker_logo_url: publicMarkerLogo(v),
+      marker_approved: undefined,
       venue_busy_scores: undefined,
     }));
     res.json(venues);
@@ -501,12 +491,13 @@ router.get("/:id", async (req, res) => {
     const now = new Date();
     const { dayInt, hourIndex } = baselinePosition(venue.city, now);
 
-    const [place, { data: deals }, { data: events }, { data: stories }, { data: typical }, friendsHere] = await Promise.all([
+    const [place, { data: deals }, { data: events }, { data: stories }, { data: typical }, { data: blended }, friendsHere] = await Promise.all([
       getPlaceData(venue),
       supabase.from("deals").select("*").eq("venue_id", req.params.id).eq("is_active", true).gt("expires_at", now.toISOString()),
       supabase.from("events").select("*, event_deals(deals(id, title, detail, description, tags, is_premium_only, is_active, expires_at, recur_days, recur_start, recur_end, source))").eq("venue_id", req.params.id).eq("is_active", true),
       supabase.from("stories").select("id, caption, emoji, visibility, is_anonymous, posted_as_venue, like_count, created_at, users!stories_user_id_fkey(username, display_name, avatar_url)").eq("venue_id", req.params.id).eq("visibility", "public").gt("expires_at", now.toISOString()).order("created_at", { ascending: false }).limit(10),
       supabase.from("venue_typical_hours").select("day_int, hour_data").eq("venue_id", req.params.id),
+      supabase.from("venue_crowd_baselines").select("day_int, hour_data").eq("venue_id", req.params.id),
       (async () => {
         const authHeader = req.headers.authorization;
         if (!authHeader?.startsWith("Bearer ")) return null;
@@ -517,9 +508,12 @@ router.get("/:id", async (req, res) => {
       })(),
     ]);
     // typical is all baseline days for this venue; has_baseline drives the
-    // "scout for us" prompt (only shown when a venue has NO BestTime baseline).
-    const hasBaseline = Array.isArray(typical) && typical.length > 0;
-    const todayRow = (typical || []).find(r => r.day_int === dayInt) || null;
+    // "scout for us" prompt (only shown when a venue has NO baseline at all).
+    // Roam's own crowd-sourced curve (venue_crowd_baselines) wins over BestTime
+    // for any day it covers — rows only exist once report volume qualifies.
+    const hasBaseline = (typical || []).length > 0 || (blended || []).length > 0;
+    const blendedToday = (blended || []).find(r => r.day_int === dayInt) || null;
+    const todayRow = blendedToday || (typical || []).find(r => r.day_int === dayInt) || null;
     // Vibes from the same 90-min window as the busy score; counts per tag.
     const { data: recentReports } = await supabase.from("crowd_reports").select("vibe_tags")
       .eq("venue_id", req.params.id).gt("reported_at", new Date(now - 90 * 60000).toISOString());
@@ -539,6 +533,16 @@ router.get("/:id", async (req, res) => {
       })(),
     ]);
 
+    const liveScore = venue.venue_busy_scores?.busy_score ?? 0;
+    const liveReports = venue.venue_busy_scores?.report_count ?? 0;
+    // Current-hour baseline vs live score, surfaced together for the chart
+    // overlay. delta_pct only exists when there are live reports to compare
+    // against a nonzero baseline.
+    const baselineNow = todayRow && Array.isArray(todayRow.hour_data)
+      ? Math.round(Number(todayRow.hour_data[hourIndex]) || 0) : null;
+    const deltaPct = liveReports > 0 && baselineNow > 0
+      ? Math.round(((liveScore - baselineNow) / baselineNow) * 100) : null;
+
     // Explicit public shape — never spread the venue row here (it carries
     // owner_id, stripe_customer_id, google_place_id).
     const { id, name, address, neighborhood, city, category, latitude, longitude,
@@ -549,8 +553,10 @@ router.get("/:id", async (req, res) => {
       description, phone, website, instagram, is_verified, cover_image_url, plan,
       heatmap_boost, created_at, dog_friendly,
       is_claimed: !!venue.owner_id,
-      busy_score: venue.venue_busy_scores?.busy_score ?? 0,
-      report_count: venue.venue_busy_scores?.report_count ?? 0,
+      busy_score: liveScore,
+      report_count: liveReports,
+      busy_now: { live: liveScore, baseline: baselineNow, delta_pct: deltaPct, has_reports: liveReports > 0 },
+      marker_logo_url: publicMarkerLogo(venue),
       deals: (deals || []).map(d => ({ ...d, is_live_now: isDealLiveNow({ ...d, venues: { city: venue.city } }, now) })),
       events: (events || [])
         .map(e => {
@@ -571,7 +577,7 @@ router.get("/:id", async (req, res) => {
             editorial_summary: place.editorial_summary,
           }
         : null,
-      typical_today: todayRow ? { day_int: todayRow.day_int, hour_data: todayRow.hour_data, now_index: hourIndex } : null,
+      typical_today: todayRow ? { day_int: todayRow.day_int, hour_data: todayRow.hour_data, now_index: hourIndex, source: blendedToday ? "roam" : "besttime" } : null,
       has_baseline: hasBaseline,
       friends_here: friendsHere,
       vibes,
