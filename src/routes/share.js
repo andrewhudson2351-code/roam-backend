@@ -43,9 +43,10 @@ router.get("/deal/:id", async (req, res) => {
       .eq("id", req.params.id).single();
     if (!d) return res.status(404).send("Not found");
     const description = `${d.venues?.name || ""} · ${d.venues?.city || ""} · Deal on Roaman`;
-    // Deal links land on the venue sheet (which lists its deals) — the SPA
-    // only routes #/v/ hashes.
-    res.send(page({ title: d.title, description, url: `${APP}/#/v/${d.venues?.id || ""}` }));
+    // Deal links land on the venue sheet with the deal highlighted — the SPA
+    // routes #/v/<venue>/d/<deal> hashes (bare #/v/<venue> still works).
+    const url = d.venues?.id ? `${APP}/#/v/${d.venues.id}/d/${d.id}` : APP;
+    res.send(page({ title: d.title, description, url }));
   } catch { res.status(500).send("Error"); }
 });
 

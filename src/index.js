@@ -25,6 +25,7 @@ const outreachRoutes = require("./routes/outreach");
 const analyticsRoutes = require("./routes/analytics");
 require("./config/apns"); // logs a warning if push isn't configured yet
 const refreshBusyScores = require("./jobs/refreshBusyScores");
+const rollupCrowdBaselines = require("./jobs/rollupCrowdBaselines");
 const weeklyOwnerDigest = require("./jobs/weeklyOwnerDigest");
 const marketingPushes = require("./jobs/marketingPushes");
 const autoScrapeDeals = require("./jobs/autoScrapeDeals");
@@ -89,6 +90,18 @@ cron.schedule("*/15 * * * *", async () => {
     console.log(`refresh_busy_scores: updated ${count} venues`);
   } catch (err) {
     console.error("refresh_busy_scores failed:", err);
+  }
+});
+
+// Daily 07:30 UTC (~3:30am ET, quiet hours) — roll consumer crowd reports into
+// Roam's own typical-hours baselines. No-ops until venues cross the per-slot
+// report threshold; BestTime stays the cold-start curve. Idempotent.
+cron.schedule("30 7 * * *", async () => {
+  try {
+    const rows = await rollupCrowdBaselines();
+    console.log(`rollup_crowd_baselines: wrote ${rows} venue-day rows`);
+  } catch (err) {
+    console.error("rollup_crowd_baselines failed:", err);
   }
 });
 

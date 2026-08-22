@@ -1,8 +1,11 @@
 const express = require("express");
 const { supabase } = require("../config/supabase");
 const authMiddleware = require("../middleware/auth");
+const { isPublicHttpUrl, assertPublicUrlAtFetch } = require("../util/safeUrl");
 
 const router = express.Router();
+
+const MARKER_LOGO_MAX_BYTES = 1024 * 1024;
 
 async function requireOwner(req, res, venueId) {
   const { data } = await supabase.from("venues").select("owner_id").eq("id", venueId).single();
@@ -51,6 +54,49 @@ router.patch("/:venueId/boost", authMiddleware, async (req, res) => {
   } catch (err) {
     console.error("boost update error:", err);
     res.status(500).json({ error: "Failed to update boost." });
+  }
+});
+
+// PATCH /api/dashboard/:venueId/marker — set or clear the custom map-marker
+// logo (paid perk). A new logo always resets marker_approved: it goes through
+// manual review before venues.js will serve it on the map.
+router.patch("/:venueId/marker", authMiddleware, async (req, res) => {
+  try {
+    const { data: venue } = await supabase.from("venues").select("owner_id, plan").eq("id", req.params.venueId).single();
+    if (!venue || venue.owner_id !== req.user.id) return res.status(403).json({ error: "Access denied. You don't own this venue." });
+    const { logo_url } = req.body;
+    if (!logo_url) {
+      const { error } = await supabase.from("venues").update({ marker_logo_url: null, marker_approved: false }).eq("id", req.params.venueId);
+      if (error) throw error;
+      return res.json({ success: true, marker_logo_url: null });
+    }
+    if (venue.plan !== "pro" && venue.plan !== "premium") {
+      return res.status(403).json({ error: "Custom map markers require a Pro or Premium plan. Upgrade to enable them." });
+    }
+    if (!isPublicHttpUrl(logo_url)) return res.status(400).json({ error: "logo_url must be a valid public http(s) URL." });
+    let resp;
+    try {
+      const safeHref = await assertPublicUrlAtFetch(logo_url);
+      resp = await fetch(safeHref, { redirect: "error", signal: AbortSignal.timeout(8000) });
+    } catch {
+      return res.status(400).json({ error: "Couldn't fetch that URL (redirects aren't allowed)." });
+    }
+    if (!resp.ok) return res.status(400).json({ error: "That URL didn't return an image." });
+    const type = (resp.headers.get("content-type") || "").split(";")[0].trim();
+    if (!["image/png", "image/jpeg", "image/webp"].includes(type)) {
+      return res.status(400).json({ error: "Logo must be a PNG, JPEG, or WebP image." });
+    }
+    if (Number(resp.headers.get("content-length")) > MARKER_LOGO_MAX_BYTES) {
+      return res.status(413).json({ error: "Logo too large (1 MB max)." });
+    }
+    const body = Buffer.from(await resp.arrayBuffer());
+    if (body.length > MARKER_LOGO_MAX_BYTES) return res.status(413).json({ error: "Logo too large (1 MB max)." });
+    const { error } = await supabase.from("venues").update({ marker_logo_url: logo_url.trim(), marker_approved: false }).eq("id", req.params.venueId);
+    if (error) throw error;
+    res.json({ success: true, marker_logo_url: logo_url.trim(), pending_review: true });
+  } catch (err) {
+    console.error("marker update error:", err);
+    res.status(500).json({ error: "Failed to update marker." });
   }
 });
 
