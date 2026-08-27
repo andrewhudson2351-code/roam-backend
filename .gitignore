@@ -3,3 +3,4 @@ node_modules/
 .env.*
 .DS_Store
 .claude/settings.local.json
+scripts/.besttime-venues-cache.json
