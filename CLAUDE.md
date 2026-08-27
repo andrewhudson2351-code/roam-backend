@@ -45,17 +45,19 @@ database/           empty — schema lives only in Supabase (use MCP list_tables
 - `venue_claims.venue_id` is unique by itself — upserts must use `onConflict: 'venue_id'`.
 - FKs to venues are mostly CASCADE; `friend_locations` is ON DELETE SET NULL.
 
-## Known open issues (from the July 2026 audit — not yet fixed)
+## Known open issues (refreshed by the 2026-08 audit — see audit-2026-08.md for the full list)
 
-- **CORS is `origin: "*"`** (`src/index.js:21`) — should be locked to the real frontend origins before launch.
-- **No security headers** — helmet (or equivalent) is not installed.
-- **Rate limiters use the default in-memory store** — counters reset on every deploy/restart and aren't shared if Railway ever runs multiple instances.
-- **JWTs live 30 days with no revocation** — logout/password-change does not invalidate existing tokens (password reset does not kill old sessions).
-- **No input validation layer** — no email-format check on register, no schema validation anywhere; routes destructure `req.body` directly. `express.json` body limit is a generous 10 MB.
-- **`venues.tier` dead column** still exists in the schema; safe to drop eventually, after confirming nothing reads it.
-- **Public venues endpoint returns `select *`-style rows** (`src/routes/venues.js`, e.g. the city list query) — the dead `tier` column and `stripe_customer_id` are exposed in the unauthenticated API response. Should be trimmed to an explicit column list.
+Fixed since the July list (do not re-report): CORS is origin-allowlisted, helmet is installed, public venue endpoints use explicit column lists, register validates email, password reset revokes old sessions via `users.token_version` (checked in `src/middleware/auth.js`).
+
+Still open, ranked:
+- **Case-sensitive email lookup on login/forgot-password** (`src/routes/auth.js`) — registration lowercases, lookups don't; mixed-case typers are locked out.
+- **Paid perks not revoked on payment failure** — `syncSubscription` ignores subscription `status`; a failed card keeps pro/premium until the subscription is deleted.
+- **1000-row PostgREST truncation** on `GET /api/deals`, `GET /api/events`, the bounds-baseline query, and `monthlyCrawl`'s city enumeration — no `.limit()`, filtering in JS; breaks silently as data grows.
+- **Rate limiters use the default in-memory store** — counters reset on every deploy and aren't shared across instances; the unauthenticated venue-detail route can also burn billed Google Places calls under the global limiter only.
+- **Logout doesn't revoke JWTs** (password reset does); no `algorithms` pin on `jwt.verify`; inline verifies in `venues.js` skip `token_version`.
+- **`venues.tier` dead column** — confirmed nothing reads/writes it; safe to drop.
+- **Cron cross-instance guard** exists only for the monthly crawl; other jobs would double-run if Railway ever scales out.
 - **No tests, empty README** — verification is manual (hit endpoints against the live API).
-- Cron runs in-process: multiple Railway instances would double-run `refresh_busy_scores`.
 
 ## Environment variables
 
