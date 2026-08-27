@@ -1,6 +1,7 @@
 // Add venues to BestTime via new-forecast calls and store their baselines.
 // COSTS MONEY: 2 credits per successful forecast, 1 per failed (~$0.04/credit).
-// Skips venues already in BestTime's stored list (paginated, free to read).
+// Skips venues already in BestTime's stored list (Query Venues All — billed
+// per page, so the list is cached on disk via besttime-venue-cache.js).
 // Baselines are upserted straight from the forecast response (no extra query credits).
 //
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, BESTTIME_API_KEY_PRIVATE
@@ -14,6 +15,7 @@
 const { createClient } = require("@supabase/supabase-js");
 const fs = require("fs");
 const path = require("path");
+const { loadStoredVenues } = require("./besttime-venue-cache");
 
 // Venues BestTime returned "no data" for. Persisted so re-runs don't burn a
 // credit re-failing them; pass --retry-failed to try them again anyway.
@@ -90,16 +92,12 @@ async function main() {
   }
   const supabase = createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"));
 
-  // Stored list (free), paginated at 1000/page.
-  const stored = [];
-  for (let page = 0; ; page++) {
-    const res = await fetch(`https://besttime.app/api/v1/venues?api_key_private=${PRIVATE_KEY}&page=${page}`);
-    const batch = await res.json();
-    if (!Array.isArray(batch) || batch.length === 0) break;
-    stored.push(...batch);
-    if (batch.length < 1000) break;
-  }
-  console.log(`BestTime stored venues: ${stored.length}`);
+  // Stored list — NOT free (Query Venues All bills per page); use the shared
+  // cache so chunked runs download it once per session.
+  const stored = await loadStoredVenues(PRIVATE_KEY, async (url) => {
+    const res = await fetch(url);
+    return res.json();
+  }, { force: process.argv.includes("--refresh-venues") });
 
   let candQuery = supabase
     .from("venues")

@@ -10,6 +10,7 @@
 //   railway variables --json | node scripts/sync-besttime.js          (full run)
 
 const { createClient } = require("@supabase/supabase-js");
+const { loadStoredVenues } = require("./besttime-venue-cache");
 
 const ALL_ZERO_ABORT_PCT = 20; // abort if > this % of fetched venues are all-zero/null
 const DAY_TEXT = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -93,18 +94,10 @@ async function main() {
   const PUBLIC_KEY = keyInfo.api_key_public;
   if (!PUBLIC_KEY) throw new FatalError("Could not resolve public key from private key");
 
-  // The venue list is paginated (1000/page); loop until an empty page.
-  const stored = [];
-  for (let page = 0; ; page++) {
-    const batch = await btFetch(
-      `https://besttime.app/api/v1/venues?api_key_private=${PRIVATE_KEY}&page=${page}`,
-      `venue list page ${page}`
-    );
-    if (!Array.isArray(batch) || batch.length === 0) break;
-    stored.push(...batch);
-    if (batch.length < 1000) break;
-  }
-  const forecasted = stored.filter((v) => v.venue_forecasted === true);
+  // Venue list via the shared cache — Query Venues All bills per page, so
+  // chunked runs must not re-download it every invocation.
+  const stored = await loadStoredVenues(PRIVATE_KEY, btFetch, { force: process.argv.includes("--refresh-venues") });
+  const forecasted = stored.filter((v) => v.venue_forecasted === true && v.venue_id);
   console.log(`BestTime stored venues: ${stored.length} total, ${forecasted.length} forecasted`);
 
   const ours = [];
